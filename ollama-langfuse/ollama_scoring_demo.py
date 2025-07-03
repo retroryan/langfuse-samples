@@ -1,31 +1,40 @@
 """
-Ollama + Langfuse Scoring Example
+Ollama + Langfuse Scoring Demo
 
-Demonstrates automated scoring of LLM responses, including:
-- Intentionally incorrect answers for testing
-- Multiple scoring methodologies
-- Integration with Langfuse's scoring system
+This demo showcases how to automatically score LLM responses using Langfuse's
+scoring capabilities. It tests various scenarios where models should give
+correct or incorrect answers, then scores their responses programmatically.
 
 Prerequisites:
 1. Ollama must be installed and running locally
 2. Pull the Llama 3.1 model: ollama pull llama3.1:8b
 3. Langfuse must be running (locally via Docker or cloud)
+4. Configure .env with LANGFUSE_* credentials
+
+Features:
+- Automatic response evaluation using different scoring methods
+- Multiple score types (numeric and categorical)
+- Detailed reasoning for each score
+- Session tracking for grouped analysis
+- Results saved to JSON for further analysis
 """
 
 import os
 import sys
 import json
+import time
 from datetime import datetime
 from dotenv import load_dotenv
 from langfuse.openai import OpenAI
-from langfuse import Langfuse, get_client
+from langfuse import Langfuse
 from typing import Dict, Any, List
+import hashlib
 
 # Load environment variables
 load_dotenv()
 
 # Initialize Langfuse client for scoring
-langfuse_client = get_client()
+langfuse_client = Langfuse()
 
 # Test cases with expected behaviors
 TEST_CASES = [
@@ -188,6 +197,15 @@ def evaluate_response(response: str, test_case: Dict[str, Any]) -> Dict[str, Any
         return {"score": 0.5, "reasoning": f"Unknown scoring method: {method}"}
 
 
+def generate_trace_id(session_id: str, test_case_name: str) -> str:
+    """Generate a deterministic trace ID based on session and test case"""
+    # Create a deterministic but unique trace ID
+    base_string = f"{session_id}-{test_case_name}"
+    # Use a simple hash to create a 32-character hex string
+    hash_object = hashlib.md5(base_string.encode())
+    return hash_object.hexdigest()
+
+
 def main(session_id=None):
     # Initialize the Langfuse OpenAI client
     client = OpenAI(
@@ -212,6 +230,10 @@ def main(session_id=None):
         print(f"❓ Question: {test_case['user']}")
         print(f"🎯 Expected: {test_case['expected_answer']}")
         
+        # Generate trace ID
+        trace_id = generate_trace_id(session_id, test_case['name'])
+        trace_ids.append(trace_id)
+        
         try:
             # Make the API call with tracing
             response = client.chat.completions.create(
@@ -226,7 +248,8 @@ def main(session_id=None):
                     "expected_answer": test_case["expected_answer"],
                     "scoring_method": test_case["scoring_method"],
                     "category": test_case["category"],
-                    "langfuse_session_id": session_id
+                    "langfuse_session_id": session_id,
+                    "langfuse_trace_id": trace_id  # Use generated trace ID
                 }
             )
             
@@ -248,15 +271,41 @@ def main(session_id=None):
             print(f"{score_emoji} Score: {score_value:.2f}")
             print(f"💭 Reasoning: {score_result['reasoning']}")
             
-            # Get trace ID from the response metadata if available
-            # Note: In real implementation, you'd get this from the Langfuse response
-            # For now, we'll create a placeholder
-            trace_id = f"trace-{test_case['name']}-{datetime.now().isoformat()}"
+            # Wait a moment to ensure trace is created
+            time.sleep(0.5)
             
             # Score the trace in Langfuse
-            # Note: In v3 SDK with OpenAI integration, scoring should be done differently
-            # For now, we'll skip the direct scoring and focus on the evaluation logic
-            print(f"📤 Score: {score_value:.2f} (would be sent to Langfuse)")
+            try:
+                # Automated scoring
+                langfuse_client.create_score(
+                    trace_id=trace_id,
+                    name=f"automated_{test_case['scoring_method']}",
+                    value=score_value,
+                    comment=score_result['reasoning'],
+                    data_type="NUMERIC"
+                )
+                print(f"📤 Numeric score sent to Langfuse: {score_value:.2f}")
+                
+                # Category score
+                category_score = "passed" if score_value >= 0.8 else "partial" if score_value >= 0.5 else "failed"
+                langfuse_client.create_score(
+                    trace_id=trace_id,
+                    name="test_result",
+                    value=category_score,
+                    data_type="CATEGORICAL"
+                )
+                print(f"📤 Category score sent to Langfuse: {category_score}")
+                
+                # Test type score
+                langfuse_client.create_score(
+                    trace_id=trace_id,
+                    name="test_category",
+                    value=test_case["category"],
+                    data_type="CATEGORICAL"
+                )
+                
+            except Exception as e:
+                print(f"⚠️  Failed to send score to Langfuse: {str(e)}")
             
             results.append({
                 "test_case": test_case["name"],
@@ -267,7 +316,8 @@ def main(session_id=None):
                 "score": score_value,
                 "reasoning": score_result["reasoning"],
                 "method": test_case["scoring_method"],
-                "trace_id": trace_id
+                "trace_id": trace_id,
+                "scores_sent": True
             })
             
         except Exception as e:
@@ -281,7 +331,8 @@ def main(session_id=None):
                 "score": 0.0,
                 "reasoning": f"Error occurred: {str(e)}",
                 "method": test_case["scoring_method"],
-                "trace_id": None
+                "trace_id": trace_id,
+                "scores_sent": False
             })
     
     # Summary
@@ -325,6 +376,7 @@ def main(session_id=None):
         print(f"   Expected: {r['expected']}")
         print(f"   Got: {r['actual'][:100]}{'...' if len(r['actual']) > 100 else ''}")
         print(f"   {r['reasoning']}")
+        print(f"   Trace ID: {r['trace_id']}")
         print()
     
     # Save results
@@ -333,6 +385,7 @@ def main(session_id=None):
         json.dump({
             "session_id": session_id,
             "timestamp": datetime.now().isoformat(),
+            "trace_ids": trace_ids,
             "summary": {
                 "total_tests": total_tests,
                 "average_score": avg_score,
@@ -348,6 +401,14 @@ def main(session_id=None):
     print(f"🔍 Check your Langfuse dashboard at {os.getenv('LANGFUSE_HOST')} to see the scores")
     if session_id:
         print(f"📍 Filter by session ID: {session_id}")
+    
+    # Ensure all events are sent before exiting
+    print("\n🔄 Flushing events to Langfuse...")
+    langfuse_client.flush()
+    time.sleep(2)  # Give time for flush to complete
+    
+    print("\n✅ Scoring demo complete!")
+    return session_id, trace_ids
 
 
 if __name__ == "__main__":

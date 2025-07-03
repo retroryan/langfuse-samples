@@ -26,7 +26,9 @@ The Strands Agents SDK is AWS's toolkit for building AI agents that integrate wi
 
 - `strands_langfuse_demo.py` - Complete demo showing Strands + Langfuse integration with multiple examples
 - `strands_monty_python_demo.py` - Fun Monty Python themed demo with rich trace attributes
-- `run_and_validate.py` - Script to run the demo and validate traces via API
+- `strands_scoring_demo.py` - Automated scoring demo that evaluates agent responses
+- `run_and_validate.py` - Script to run demos and validate traces/scores via API
+- `run_scoring_and_validate.py` - Enhanced validation script with scoring support
 - `view_traces.py` - View recent traces from the Langfuse API
 - `KEY_STRANDS_LANGFUSE.md` - Complete integration guide with solution details
 - `requirements.txt` - Python dependencies
@@ -79,7 +81,24 @@ python strands_monty_python_demo.py
 python view_traces.py
 ```
 
-### Option 5: Delete all traces (cleanup)
+### Option 5: Run the scoring demo
+
+```bash
+# Run scoring demo with validation
+python run_scoring_and_validate.py scoring
+
+# Or run directly
+python strands_scoring_demo.py
+```
+
+This will:
+- Test agent responses against expected answers
+- Score responses using multiple methods (exact match, keyword match)
+- Send scores to Langfuse (numeric and categorical)
+- Save results to JSON for analysis
+- Display detailed score analytics
+
+### Option 6: Delete all traces (cleanup)
 
 ```bash
 # Interactive mode with confirmation
@@ -104,6 +123,14 @@ python delete_traces.py --yes
 4. **Holy Grail Wisdom** - Quest insights from a wise sage
 5. **Spanish Inquisition** - Programming humor with Python references
 
+### Scoring Demo (`strands_scoring_demo.py`)
+Automated evaluation of agent responses with programmatic scoring:
+1. **Math Questions** - Tests both correct and intentionally wrong answers
+2. **Geography Facts** - Capital city questions with keyword matching
+3. **History Questions** - Moon landing facts with context evaluation
+4. **Automated Scoring** - Multiple score types (numeric, categorical)
+5. **Result Analysis** - JSON output with detailed metrics
+
 ## What's happening?
 
 The example uses Strands agents with OpenTelemetry instrumentation to automatically send traces to Langfuse. This provides:
@@ -114,6 +141,14 @@ The example uses Strands agents with OpenTelemetry instrumentation to automatica
 - Session and user tracking
 - Custom tags for organization
 - Error tracking and debugging
+
+### Scoring Integration
+The scoring demo demonstrates external evaluation pipelines:
+- Uses Langfuse SDK to add scores to existing traces
+- Supports numeric scores (0.0-1.0) and categorical scores (passed/failed)
+- Evaluates responses with custom logic (exact match, keyword presence)
+- Tracks test metadata (category, expected answer, scoring method)
+- Saves results for further analysis
 
 ## Viewing Traces
 

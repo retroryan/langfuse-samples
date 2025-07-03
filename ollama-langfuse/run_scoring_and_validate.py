@@ -14,8 +14,10 @@ import sys
 import time
 import requests
 import os
+import json
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import base64
 
 # Load environment variables
 load_dotenv()
@@ -76,7 +78,7 @@ def main():
     start_time = time.time()
     try:
         result = subprocess.run(
-            [sys.executable, "ollama_scoring_example.py", session_id],
+            [sys.executable, "ollama_scoring_demo.py", session_id],
             capture_output=True,
             text=True,
             check=True
@@ -149,13 +151,111 @@ def main():
         # Check if scores were sent to Langfuse
         if langfuse_available:
             print("\n📤 Checking Langfuse for scores...")
+            print("-" * 50)
+            
+            # Wait a moment for scores to be processed
+            print("Waiting for scores to be processed...")
+            time.sleep(5)
+            
             try:
-                # Note: In a real implementation, you would use the Langfuse API
-                # to query for scores with the session_id
-                print(f"💡 Check your Langfuse dashboard for scores with session: {session_id}")
-                print(f"   URL: {langfuse_host}")
+                # Use the Langfuse API to fetch scores
+                public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
+                secret_key = os.getenv("LANGFUSE_SECRET_KEY")
+                
+                if not public_key or not secret_key:
+                    print("⚠️  Langfuse API keys not found in environment")
+                else:
+                    # Create basic auth header
+                    credentials = f"{public_key}:{secret_key}"
+                    auth_header = base64.b64encode(credentials.encode()).decode()
+                    
+                    headers = {
+                        "Authorization": f"Basic {auth_header}",
+                        "Content-Type": "application/json"
+                    }
+                    
+                    # Query scores API
+                    scores_url = f"{langfuse_host}/api/public/v2/scores"
+                    params = {
+                        "limit": 50,
+                        "page": 1
+                    }
+                    
+                    response = requests.get(scores_url, headers=headers, params=params, timeout=10)
+                    
+                    if response.status_code == 200:
+                        scores_data = response.json()
+                        
+                        # Filter scores for this session
+                        session_scores = []
+                        for score in scores_data.get("data", []):
+                            # Check if this score belongs to our session
+                            if session_id in str(score.get("traceId", "")):
+                                session_scores.append(score)
+                        
+                        if session_scores:
+                            print(f"\n✅ Found {len(session_scores)} scores for this session:")
+                            
+                            # Group scores by trace
+                            trace_scores = {}
+                            for score in session_scores:
+                                trace_id = score.get("traceId", "Unknown")
+                                if trace_id not in trace_scores:
+                                    trace_scores[trace_id] = []
+                                trace_scores[trace_id].append(score)
+                            
+                            # Display scores by trace
+                            for trace_id, scores in trace_scores.items():
+                                print(f"\nTrace: {trace_id[-16:]}...")
+                                for score in scores:
+                                    score_name = score.get("name", "Unknown")
+                                    score_value = score.get("value")
+                                    score_type = score.get("dataType", "UNKNOWN")
+                                    comment = score.get("comment", "")
+                                    
+                                    if score_type == "NUMERIC":
+                                        print(f"  - {score_name}: {score_value:.2f}")
+                                    else:
+                                        print(f"  - {score_name}: {score_value}")
+                                    
+                                    if comment:
+                                        print(f"    Comment: {comment[:100]}..." if len(comment) > 100 else f"    Comment: {comment}")
+                            
+                            # Summary statistics
+                            numeric_scores = [s for s in session_scores if s.get("dataType") == "NUMERIC"]
+                            categorical_scores = [s for s in session_scores if s.get("dataType") == "CATEGORICAL"]
+                            
+                            print(f"\n📊 Score Statistics:")
+                            print(f"  Total scores: {len(session_scores)}")
+                            print(f"  Numeric scores: {len(numeric_scores)}")
+                            print(f"  Categorical scores: {len(categorical_scores)}")
+                            
+                            if numeric_scores:
+                                avg_score = sum(s.get("value", 0) for s in numeric_scores) / len(numeric_scores)
+                                print(f"  Average numeric score: {avg_score:.2f}")
+                                
+                            if categorical_scores:
+                                category_counts = {}
+                                for s in categorical_scores:
+                                    val = s.get("value", "unknown")
+                                    category_counts[val] = category_counts.get(val, 0) + 1
+                                print(f"  Category distribution: {category_counts}")
+                        else:
+                            print(f"\n⚠️  No scores found for session: {session_id}")
+                            print("This could mean:")
+                            print("  1. Scores haven't been processed yet (try waiting longer)")
+                            print("  2. There was an error sending scores")
+                            print("  3. The trace IDs don't match the session ID")
+                    else:
+                        print(f"❌ Error fetching scores: HTTP {response.status_code}")
+                        print(f"Response: {response.text}")
+                    
+                    print(f"\n💡 View all scores in Langfuse dashboard:")
+                    print(f"   URL: {langfuse_host}")
+                    print(f"   Session: {session_id}")
+                    
             except Exception as e:
-                print(f"⚠️  Could not verify scores in Langfuse: {e}")
+                print(f"⚠️  Error checking scores in Langfuse: {e}")
         
     except FileNotFoundError:
         print(f"❌ Results file not found: {results_file}")
