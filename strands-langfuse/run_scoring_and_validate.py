@@ -54,7 +54,7 @@ def check_aws_credentials():
     import boto3
     try:
         # Try to create a Bedrock client
-        client = boto3.client('bedrock-runtime', region_name=os.getenv('BEDROCK_REGION', 'us-west-2'))
+        client = boto3.client('bedrock-runtime', region_name=os.getenv('BEDROCK_REGION', 'us-east-1'))
         return True
     except Exception as e:
         print(f"❌ AWS credentials not configured properly: {e}")

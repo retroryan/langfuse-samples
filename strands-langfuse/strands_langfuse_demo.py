@@ -51,7 +51,7 @@ def create_agent(system_prompt, session_id, user_id, tags):
     """Create an agent with Langfuse trace attributes"""
     model = BedrockModel(
         model_id=os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-3-5-sonnet-20241022-v2:0"),
-        region=os.environ.get("BEDROCK_REGION", "us-west-2")
+        region=os.environ.get("BEDROCK_REGION", "us-east-1")
     )
     
     # These trace attributes will appear in Langfuse
