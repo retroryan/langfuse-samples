@@ -11,12 +11,21 @@ cdk.out/
 cdk.context.json
 outputs.json
 synth.lock
+# Lambda-specific CDK artifacts
+strands-langfuse/lambda/cdk/cdk.out/
+strands-langfuse/lambda/cdk/outputs.json
+strands-langfuse/lambda/cdk/deployment-info.json
+strands-langfuse/lambda/cdk/venv/
 
 # Lambda deployment packages
 lambda.zip
 layer.zip
 deployment-package/
 package/
+# Lambda build artifacts
+strands-langfuse/lambda/build/
+strands-langfuse/lambda/package/
+*.zip
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
