@@ -124,6 +124,32 @@ The integration uses OpenTelemetry (OTEL) to send traces from Strands agents to 
 - **Langfuse connection failed**: Ensure Langfuse is running and accessible
 - **No traces appearing**: Check [KEY_STRANDS_LANGFUSE.md](KEY_STRANDS_LANGFUSE.md) for OTEL configuration
 
+## AWS Lambda Deployment
+
+### Prerequisites
+- **Langfuse deployed on AWS**: You need Langfuse running on AWS first. See [../langfuse-aws](../langfuse-aws/) for deployment instructions.
+- **AWS CDK**: Install with `npm install -g aws-cdk`
+
+### Testing the Lambda Function
+
+1. **Build and deploy the Lambda**:
+   ```bash
+   cd lambda
+   python build_lambda.py
+   cdk deploy
+   ```
+
+2. **Test via AWS Console**:
+   - Navigate to Lambda in AWS Console
+   - Find `StrandsLangfuseFunction`
+   - Use the Test feature with a sample event
+
+3. **Monitor traces**:
+   - Check your AWS-deployed Langfuse instance
+   - Traces will appear under the Lambda's session
+
+For more Lambda details, see [lambda/README.md](lambda/README.md).
+
 ## Learn More
 
 - [Strands Agents Documentation](https://strandsagents.com)
