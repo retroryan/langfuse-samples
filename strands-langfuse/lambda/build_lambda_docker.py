@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build Lambda deployment package following AWS best practices
+Build Lambda deployment package using Docker for Linux compatibility
 """
 import os
 import shutil
@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 
 def build_deployment_package():
-    """Build Lambda deployment package with dependencies"""
-    print("🏗️  Building Lambda deployment package...")
+    """Build Lambda deployment package with dependencies using Docker"""
+    print("🏗️  Building Lambda deployment package with Docker...")
     
     # Set up paths
     lambda_dir = Path(__file__).parent
@@ -25,20 +25,25 @@ def build_deployment_package():
     build_dir.mkdir()
     package_dir.mkdir()
     
-    # Install dependencies to package directory
-    print("📦 Installing dependencies...")
-    # Note: strands doesn't have pre-built wheels, so we install without platform restrictions
-    # This means the package must be built on a Linux-compatible environment for production
-    subprocess.run([
-        sys.executable, "-m", "pip", "install",
-        "-r", str(lambda_dir / "requirements.txt"),
-        "-t", str(package_dir),
-        "--upgrade"
-    ], check=True)
+    # Use Docker to install dependencies for Lambda runtime
+    print("🐳 Using Docker to build Linux-compatible packages...")
+    docker_cmd = [
+        "docker", "run", "--rm",
+        "--platform", "linux/amd64",  # Force x86_64 architecture for Lambda
+        "-v", f"{lambda_dir}:/var/task",
+        "-v", f"{package_dir}:/var/task/package",
+        "--entrypoint", "/bin/bash",
+        "public.ecr.aws/lambda/python:3.12",
+        "-c",
+        "pip install -r /var/task/requirements.txt -t /var/task/package --upgrade && cp /var/task/lambda_handler.py /var/task/package/"
+    ]
     
-    # Copy Lambda handler
-    print("📄 Copying Lambda handler...")
-    shutil.copy2(lambda_dir / "lambda_handler.py", package_dir)
+    try:
+        subprocess.run(docker_cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Docker build failed: {e}")
+        print("💡 Make sure Docker is running and you have the Lambda Python image")
+        sys.exit(1)
     
     # Create deployment package zip
     print("📦 Creating deployment package...")

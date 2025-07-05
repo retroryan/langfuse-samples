@@ -55,10 +55,20 @@ def run_command(cmd, cwd=None, check=True):
 def build_lambda_package():
     """Build the Lambda deployment package"""
     lambda_dir = Path(__file__).parent
-    build_script = lambda_dir / "build_lambda.py"
+    # Try Docker build first for Linux compatibility
+    docker_build_script = lambda_dir / "build_lambda_docker.py"
+    regular_build_script = lambda_dir / "build_lambda.py"
+    
+    if docker_build_script.exists():
+        print("🏗️  Building Lambda deployment package with Docker...")
+        try:
+            run_command(f"python3 {docker_build_script}", cwd=lambda_dir)
+            return
+        except SystemExit:
+            print("⚠️  Docker build failed, falling back to regular build...")
     
     print("🏗️  Building Lambda deployment package...")
-    run_command(f"python3 {build_script}", cwd=lambda_dir)
+    run_command(f"python3 {regular_build_script}", cwd=lambda_dir)
     
 def deploy_stack():
     """Deploy the CDK stack"""

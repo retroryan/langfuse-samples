@@ -19,7 +19,7 @@ auth_token = base64.b64encode(f"{langfuse_pk}:{langfuse_sk}".encode()).decode()
 os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"{langfuse_host}/api/public/otel/v1/traces"
 os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = f"Authorization=Basic {auth_token}"
 os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = "http/protobuf"
-os.environ["OTEL_SERVICE_NAME"] = "strands-langfuse-lambda"
+os.environ["OTEL_SERVICE_NAME"] = "Lambda Strands Agents"
 
 # NOW import Strands after setting environment variables
 from strands import Agent
@@ -53,18 +53,18 @@ def handler(event, context):
             trace_attributes={
                 "session.id": f"lambda-demo-{run_id}",
                 "user.id": "lambda-user",
-                "langfuse.tags": ["lambda-demo", f"run-{run_id}"]
+                "langfuse.tags": ["lambda-demo", f"run-{run_id}"],
+                "langfuse.name": "Lambda Strands Agents"
             }
         )
         
         # Get response
         response = agent(query)
         
-        # Force flush telemetry
+        # Force flush telemetry before Lambda terminates
         if hasattr(telemetry, 'tracer_provider') and hasattr(telemetry.tracer_provider, 'force_flush'):
             telemetry.tracer_provider.force_flush()
         
-        # Return response
         return {
             'statusCode': 200,
             'headers': {
