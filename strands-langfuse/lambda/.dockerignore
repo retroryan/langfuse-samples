@@ -1,0 +1,7 @@
+cdk/
+cdk.out/
+venv/
+__pycache__/
+*.pyc
+.env
+deployment-info.json

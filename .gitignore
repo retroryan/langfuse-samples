@@ -1,10 +1,27 @@
 
-*.json
+# VS Code
 .history/
+
+# Project-specific files
+cloud.env
+scoring_results_*.json
+
+# AWS CDK
+cdk.out/
+cdk.context.json
+outputs.json
+synth.lock
+
+# Lambda deployment packages
+lambda.zip
+layer.zip
+deployment-package/
+package/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*.pyo
 *$py.class
 
 # C extensions

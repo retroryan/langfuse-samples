@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "strands": {
+      "command": "uvx",
+      "args": ["strands-agents-mcp-server"]
+    },
+    "aws-documentation": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server"]
+    },
+    "aws-iam": {
+      "command": "uvx",
+      "args": ["awslabs.iam-mcp-server"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "aws-cdk": {
+      "command": "uvx",
+      "args": ["awslabs.cdk-mcp-server"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "awslabs.cost-analysis-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.cost-analysis-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "ryan-gc"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
