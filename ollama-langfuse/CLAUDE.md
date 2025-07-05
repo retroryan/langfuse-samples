@@ -93,8 +93,8 @@ Common environment variables:
 LANGFUSE_PUBLIC_KEY=your-public-key
 LANGFUSE_SECRET_KEY=your-secret-key
 LANGFUSE_HOST=http://localhost:3000
-AWS_REGION=us-west-2
-BEDROCK_REGION=us-west-2
+AWS_REGION=us-east-1
+BEDROCK_REGION=us-east-1
 BEDROCK_MODEL_ID=us.anthropic.claude-3-5-sonnet-20241022-v2:0
 ```
 
