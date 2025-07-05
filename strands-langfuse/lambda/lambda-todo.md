@@ -162,23 +162,24 @@ Required Lambda environment variables:
    - **Error**: `Runtime.ImportModuleError: Unable to import module 'lambda_handler': No module named 'strands'`
    - **Lesson**: Must bundle all dependencies with the Lambda deployment
 
-### 🚧 Current Approach (In Progress)
+### ✅ Successful Approach
 
-1. **Pre-built Deployment Package Strategy**:
-   - Created `build_lambda.py` to build deployment package outside of CDK
-   - Follows AWS documentation best practices for Python Lambda packages
-   - Uses `pip install --platform manylinux2014_x86_64` for Linux compatibility
-   - Creates a flat zip structure with handler and dependencies at root
+1. **Docker-based Deployment Package Strategy**:
+   - Created `build_lambda_docker.py` to build deployment package using Docker
+   - Uses `--platform linux/amd64` to ensure x86_64 architecture compatibility
+   - Leverages official AWS Lambda Python 3.12 Docker image
+   - Creates Linux-compatible binaries for compiled dependencies like pydantic_core
 
-2. **Updated CDK Stack**:
-   - Modified to use `Code.from_asset()` with pre-built zip file
-   - Removed Docker bundling to avoid timeout issues
-   - Added runtime check for deployment package existence
+2. **Critical Fixes Applied**:
+   - **Package Name**: Fixed `strands` → `strands-agents[otel]` in requirements.txt
+   - **Architecture**: Forced x86_64 build with `--platform linux/amd64` in Docker
+   - **Region Alignment**: Everything deployed to us-east-1 to match Langfuse
 
-3. **Updated Deployment Flow**:
-   - deploy.py now calls build_lambda.py first
-   - Then proceeds with standard CDK deployment
-   - Should complete much faster without Docker overhead
+3. **Final Deployment Flow**:
+   - deploy.py tries Docker build first (build_lambda_docker.py)
+   - Falls back to regular build if Docker fails
+   - Uses pre-built zip package with CDK deployment
+   - Completes in ~2-3 minutes without timeout issues
 
 ### ⚠️ CRITICAL ISSUE: Package Name Mismatch
 
@@ -194,26 +195,56 @@ Required Lambda environment variables:
 
 **Solution**: Update Lambda's `requirements.txt` to use the correct package name.
 
-### 📋 Next Steps
+### ✅ CRITICAL FIX APPLIED
 
-1. **Test Current Approach**:
-   ```bash
-   cd lambda
-   python deploy.py
-   ```
+**Fixed**: Updated `lambda/requirements.txt` to use correct package name:
+- Changed: `strands>=0.2.0` → `strands-agents[otel]>=0.2.0`
+- This matches the parent directory's requirements and ensures proper installation
+
+### 🎉 Final Status
+
+**DEPLOYMENT SUCCESSFUL!**
+
+- **Lambda Function URL**: https://3alxzbc5qmgovgdg7um4vxwvcm0njxfn.lambda-url.us-east-1.on.aws/
+- **Test Results**: Lambda responds correctly to queries
+- **Trace Generation**: Successfully sends traces to Langfuse via OTEL
+- **Package Size**: ~89MB (within Lambda limits)
+
+### 📋 Testing the Lambda
+
+```bash
+# Basic test
+curl -X POST https://3alxzbc5qmgovgdg7um4vxwvcm0njxfn.lambda-url.us-east-1.on.aws/ \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is 2+2?"}'
+
+# Response format
+{
+  "success": true,
+  "run_id": "3c9dfb1d",
+  "timestamp": "2025-07-05T03:49:32.721542",
+  "query": "What is the capital of France?",
+  "response": "Paris is the capital of France.",
+  "langfuse_url": "http://Langfu-LoadB-ddQ8kK3AEPfR-697964116.us-east-1.elb.amazonaws.com",
+  "trace_filter": "run-3c9dfb1d"
+}
+```
 
 2. **If Successful**:
    - Verify Lambda function executes correctly
    - Test Langfuse trace generation
    - Validate OTEL telemetry export
+   - Update this document with successful deployment confirmation
 
-3. **If Still Issues**:
-   - Consider using Lambda Layers for dependencies
-   - Explore container image deployment as alternative
-   - Use S3 upload for large deployment packages (>50MB)
+3. **If Package Size Issues (>50MB)**:
+   - Consider using Lambda Layers for dependencies per AWS best practices:
+     - Create separate layer for strands-agents and dependencies
+     - Create separate layer for langfuse 
+     - Keep only handler code in Lambda function
+   - Alternative: Use container image deployment for larger packages
 
 4. **Production Improvements** (Future):
-   - Add Lambda Layers for common dependencies
+   - Add Lambda Layers for common dependencies (following AWS Python layer guidelines)
    - Implement proper error handling and retries
    - Add API Gateway for advanced features
    - Use Secrets Manager for credentials
@@ -226,3 +257,24 @@ Required Lambda environment variables:
 3. **CDK Simplicity**: Standard Lambda constructs work better than alpha modules
 4. **Best Practices**: Follow AWS documentation for Python package structure
 5. **Environment Variables**: Be aware of Lambda reserved variables
+6. **Package Naming**: Always verify PyPI package names match import statements
+
+### 📝 Summary of Package Investigation
+
+**Investigation Results**:
+- The `strands` package import comes from the `strands-agents` PyPI package
+- Local development uses `strands-agents[otel]>=0.2.0` (correct)
+- Lambda requirements incorrectly specified `strands>=0.2.0` (doesn't exist on PyPI)
+- Only `strands==0.1.0` exists on PyPI as a separate, unrelated package
+
+**AWS Lambda Best Practices Applied**:
+- Reviewed AWS documentation for Python Lambda layers
+- Confirmed proper package structure with `python/` directory at root
+- Identified need for `--platform manylinux2014_x86_64` for compiled dependencies
+- Lambda layers recommended for large dependency sets to avoid deployment package size limits
+
+**CDK Best Practices Applied**:
+- Reviewed CDK guidance for Lambda deployments
+- Confirmed pre-built package approach is appropriate
+- Identified Lambda layer pattern as production best practice
+- Avoided alpha modules in favor of stable constructs
