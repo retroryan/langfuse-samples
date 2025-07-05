@@ -1,8 +1,0 @@
-{
-  "function_url": "https://3alxzbc5qmgovgdg7um4vxwvcm0njxfn.lambda-url.us-east-1.on.aws/",
-  "langfuse_host": "http://Langfu-LoadB-ddQ8kK3AEPfR-697964116.us-east-1.elb.amazonaws.com",
-  "deployed_at": "2025-07-05T04:05:02.286930Z",
-  "bedrock_model": "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-  "bedrock_region": "us-east-1",
-  "test_run_id": "21174552"
-}
