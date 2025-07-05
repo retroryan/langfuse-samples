@@ -95,25 +95,6 @@ This script will:
 - Validate trace content and structure
 - Display results and metrics
 
-## Manual Deployment
-
-If you prefer manual steps:
-
-```bash
-# 1. Build Lambda package with Docker
-python build_lambda_docker.py
-
-# 2. Load environment variables
-export $(grep -v '^#' ../cloud.env | xargs)
-
-# 3. Deploy with CDK
-cd cdk
-npm install -g aws-cdk  # if not installed
-pip install -r requirements.txt
-cdk bootstrap  # first time only
-cdk deploy
-```
-
 ## Troubleshooting
 
 ### Common Issues

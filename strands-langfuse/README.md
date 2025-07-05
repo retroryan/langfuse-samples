@@ -30,8 +30,8 @@ This example demonstrates how to trace AWS Strands agents using Langfuse observa
 Update `.env` with your settings:
 ```bash
 # AWS Configuration
-AWS_REGION=us-west-2
-BEDROCK_REGION=us-west-2
+AWS_REGION=us-east-1
+BEDROCK_REGION=us-east-1
 BEDROCK_MODEL_ID=us.anthropic.claude-3-5-sonnet-20241022-v2:0
 
 # Langfuse Configuration
