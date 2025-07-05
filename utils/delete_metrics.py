@@ -22,8 +22,14 @@ from dotenv import load_dotenv
 from datetime import datetime
 import time
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+for env_path in ['.env', '../.env', 'ollama-langfuse/.env', 'strands-langfuse/.env']:
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+        break
+else:
+    # Try loading from current directory as fallback
+    load_dotenv()
 
 def get_auth_header():
     """Create Basic Auth header for Langfuse API"""

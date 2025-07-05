@@ -2,11 +2,28 @@
 
 This repository contains example integrations demonstrating how to use Langfuse observability with various LLM frameworks.
 
+## Quick Start
+
+### 1. Setup Repository
+```bash
+# Clone and setup
+git clone https://github.com/retroryan/langfuse-samples
+cd langfuse-samples
+
+# Run setup script for guided installation
+python setup.py
+
+# Or check current setup
+python setup.py --check
+```
+
+### 2. Choose Your Integration
+
 ## Getting Started with Langfuse
 
-First, you'll need a Langfuse instance running:
+Choose one of these options to get a Langfuse instance running:
 
-### Local Setup (Recommended for Development)
+### Option A: Local Setup (Recommended for Development)
 ```bash
 git clone https://github.com/langfuse/langfuse
 cd langfuse
@@ -14,7 +31,7 @@ docker-compose up
 ```
 This will start Langfuse locally at http://localhost:3000
 
-### AWS Deployment
+### Option B: AWS Deployment
 
 For simple testing of Langfuse on AWS (not for production), you can use the [langfuse-aws](langfuse-aws/) directory in this repository. This is a simplified deployment based on the comprehensive guide at https://github.com/aws-samples/deploy-langfuse-on-ecs-with-fargate/tree/main.
 
@@ -51,6 +68,21 @@ Run the basic demo to see simple question-answering traced in Langfuse, or try t
 Infrastructure as code for deploying Langfuse on AWS (deployment scripts, not demos).
 
 ## Running Examples
+
+### Quick Commands
+```bash
+# Using Makefile (recommended)
+make help          # Show all available commands
+make setup         # Interactive setup for all components
+make check         # Validate current setup
+make test          # Run all integration tests
+
+# Using setup script directly
+python setup.py    # Interactive setup
+python setup.py --check --component ollama  # Check specific component
+```
+
+### Manual Setup
 
 Each demo directory contains:
 - Python example scripts (basic and themed demos)

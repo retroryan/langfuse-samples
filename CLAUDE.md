@@ -8,7 +8,7 @@ This repository contains sample integrations demonstrating how to use Langfuse o
 
 - **ollama-langfuse**: Integration with local Ollama models using OpenAI-compatible API
 - **strands-langfuse**: Integration with AWS Strands agents and Bedrock models using OpenTelemetry
-- **quick-fuse**: Simplified demonstration of Strands + Langfuse integration for quick prototyping
+- **langfuse-aws**: AWS CDK deployment scripts for hosting Langfuse on AWS infrastructure
 
 ## Common Development Commands
 
@@ -39,10 +39,8 @@ python run_scoring_and_validate.py
 # View recent traces via API
 python view_traces.py
 
-# Debug utilities (root level)
-python debug_scores_api.py        # Debug score API endpoints
-python debug_scores_detailed.py   # Detailed score debugging
-python delete_metrics.py          # Clean up test metrics
+# Utility Scripts (utils/)
+python utils/delete_metrics.py    # Clean up test metrics from Langfuse
 ```
 
 ### Environment Setup
