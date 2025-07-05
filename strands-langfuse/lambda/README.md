@@ -2,6 +2,8 @@
 
 AWS Lambda deployment of the Strands-Langfuse integration that demonstrates OpenTelemetry-based observability for LLM applications using AWS Bedrock. The Lambda provides a simple HTTP endpoint for querying an AI agent with automatic trace collection in Langfuse.
 
+**Important**: This Lambda requires Langfuse to be deployed on AWS. See [../../langfuse-aws](../../langfuse-aws/) for deployment instructions.
+
 ## Overview
 
 This Lambda function:
@@ -20,35 +22,33 @@ This Lambda function:
 
 ## Prerequisites
 
-- AWS CLI configured with appropriate credentials
-- Docker running locally (for building Lambda packages)
-- Node.js (for CDK CLI)
-- Python 3.12+
-- Environment variables in `../cloud.env`:
+- **Langfuse on AWS**: Deploy Langfuse first using [../../langfuse-aws](../../langfuse-aws/)
+- **AWS CLI**: Configured with appropriate credentials
+- **AWS CDK**: Install with `npm install -g aws-cdk`
+- **Python 3.12+**: For running build scripts
+- **Environment Configuration**: Create `../cloud.env` with your AWS Langfuse details:
   ```bash
   LANGFUSE_PUBLIC_KEY=your-public-key
   LANGFUSE_SECRET_KEY=your-secret-key
-  LANGFUSE_HOST=http://your-langfuse-host
+  LANGFUSE_HOST=http://your-aws-langfuse-host
   BEDROCK_REGION=us-east-1
   BEDROCK_MODEL_ID=us.anthropic.claude-3-5-sonnet-20241022-v2:0
   ```
 
 ## Quick Start
 
-Deploy the Lambda function using the provided deployment script:
+1. **Build the Lambda package**:
+   ```bash
+   python build_lambda.py
+   ```
 
-```bash
-# Deploy with automatic package building
-python deploy.py
-```
+2. **Deploy with CDK**:
+   ```bash
+   cd cdk
+   cdk deploy
+   ```
 
-The deployment script will:
-1. Load environment variables from `../cloud.env`
-2. Build Lambda package using Docker (ensures Linux compatibility)
-3. Bootstrap CDK if needed
-4. Deploy the Lambda stack to us-east-1
-5. Test the deployed function
-6. Display the Function URL
+3. **Note the Function URL** from the deployment output
 
 ## Testing the Lambda
 
@@ -114,16 +114,8 @@ This script will:
 
 ### Viewing Logs
 
-```bash
-# Find your log group
-aws logs describe-log-groups --region us-east-1 | grep -i strands
-
-# Tail recent logs
-aws logs get-log-events \
-  --log-group-name /aws/lambda/StrandsLangfuseLambdaStack-* \
-  --log-stream-name <stream-name> \
-  --region us-east-1
-```
+- **CloudWatch Console**: Navigate to Lambda > StrandsLangfuseFunction > Monitor > Logs
+- **Langfuse UI**: Check your AWS-deployed Langfuse instance for traces
 
 ## Cleanup
 
@@ -142,9 +134,7 @@ cdk destroy
 
 - `lambda_handler.py` - Main Lambda handler with Strands agent
 - `requirements.txt` - Dependencies (strands-agents, langfuse, boto3)
-- `build_lambda_docker.py` - Docker-based package builder
-- `deploy.py` - Automated deployment script
-- `test_lambda.py` - Validation script for testing traces
+- `build_lambda.py` - Package builder for Lambda deployment
 - `cdk/stack.py` - CDK infrastructure definition
 
 ### How It Works
