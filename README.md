@@ -91,6 +91,32 @@ Each demo directory contains:
 - `view_traces.py` - Views recent traces via Langfuse API
 - `.env` file with required configuration
 
+## Troubleshooting
+
+### Common Issues
+
+| Problem | Solution |
+|---------|----------|
+| **"No .env file found"** | Run `python setup.py` or copy from `.env.example` files |
+| **"Langfuse connection failed"** | Ensure Langfuse is running and API keys are correct |
+| **"Ollama not accessible"** | Start Ollama with `ollama serve` and pull required models |
+| **"AWS credentials not found"** | Run `aws configure` or set environment variables |
+| **"No traces appearing"** | Wait a few seconds for processing, check API connectivity |
+
+### Getting Help
+
+1. **Check component-specific README**: Each directory has detailed setup instructions
+2. **Validate setup**: Run `make check` to verify configuration  
+3. **View logs**: Most scripts provide detailed error messages
+4. **Clean restart**: Use `make clean` to remove temporary files
+
+## Utility Scripts
+
+The `utils/` directory contains helpful maintenance scripts:
+
+- **delete_metrics.py**: Clean up Langfuse traces and scores
+- See [utils/README.md](utils/README.md) for full documentation
+
 ## Prerequisites
 
 - Langfuse instance (local or cloud)

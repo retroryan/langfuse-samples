@@ -35,3 +35,20 @@ python utils/delete_metrics.py --yes
 - Interactive confirmation by default
 - Shows count of items before deletion
 - Supports selective deletion (traces only or scores only)
+
+### validate_code.py
+Code validation script that checks Python syntax across all files in the repository.
+
+```bash
+# Validate all Python files
+python utils/validate_code.py
+
+# Or use via Makefile
+make validate
+```
+
+**Features:**
+- Checks syntax of all Python files
+- Skips common directories (.git, __pycache__, etc.)
+- Provides detailed error reporting
+- Useful for CI/CD pipelines

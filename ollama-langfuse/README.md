@@ -4,6 +4,25 @@ This repository demonstrates how to integrate local Ollama models with Langfuse 
 
 ## Quick Start
 
+### 1. Setup Environment
+```bash
+# Copy environment template and configure
+cp .env.example .env
+# Edit .env with your Langfuse credentials
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Prerequisites Check
+```bash
+# Ensure Ollama is running with the model
+ollama pull llama3.1:8b
+ollama serve  # if not already running
+```
+
+### 3. Run Demos
+
 ```bash
 # 1. Install dependencies
 pip install -r requirements.txt

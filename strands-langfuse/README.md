@@ -4,16 +4,17 @@ This example demonstrates how to trace AWS Strands agents using Langfuse observa
 
 ## Quick Start
 
-1. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 1. Setup Environment  
+```bash
+# Copy environment template and configure
+cp .env.example .env
+# Edit .env with your AWS and Langfuse credentials
 
-2. **Configure environment**
-   - Copy `.env.example` to `.env` (if needed)
-   - Update with your AWS and Langfuse credentials
+# Install dependencies
+pip install -r requirements.txt
+```
 
-3. **Run with validation** (recommended)
+### 2. Run with Validation (Recommended)
    ```bash
    python run_and_validate.py
    ```

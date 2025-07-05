@@ -125,6 +125,7 @@ def main():
     parser.add_argument('--component', choices=['ollama', 'strands', 'aws'], 
                        help='Setup specific component (ollama-langfuse, strands-langfuse, or langfuse-aws)')
     parser.add_argument('--install-deps', action='store_true', help='Install dependencies')
+    parser.add_argument('--dev', action='store_true', help='Install development dependencies')
     
     args = parser.parse_args()
     
@@ -159,6 +160,17 @@ def main():
         if args.install_deps or input("\nInstall dependencies? (y/n): ").lower() == 'y':
             if not install_dependencies(component):
                 sys.exit(1)
+        
+        if args.dev or input("\nInstall development dependencies (linting, formatting)? (y/n): ").lower() == 'y':
+            print("📦 Installing development dependencies...")
+            try:
+                subprocess.run([
+                    sys.executable, '-m', 'pip', 'install', '-r', 'requirements-dev.txt'
+                ], check=True, capture_output=True)
+                print("✅ Development dependencies installed")
+            except subprocess.CalledProcessError as e:
+                print(f"❌ Failed to install development dependencies: {e}")
+                print("You can install them later with: pip install -r requirements-dev.txt")
     
     # Service availability checks
     check_service_availability()

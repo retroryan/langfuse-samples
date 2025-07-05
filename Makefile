@@ -16,9 +16,15 @@ check:  ## Check current setup and validate environment
 install-deps:  ## Install dependencies for all components
 	python setup.py --install-deps
 
+install-dev:  ## Install development dependencies (linting, formatting, testing)
+	pip install -r requirements-dev.txt
+
 lint:  ## Run code linting with flake8
 	@echo "Running flake8 linting..."
 	@python -m flake8 . || echo "Install flake8 with: pip install flake8"
+
+validate:  ## Validate Python syntax in all files
+	python utils/validate_code.py
 
 format:  ## Format code with black (if available)
 	@echo "Formatting code with black..."
