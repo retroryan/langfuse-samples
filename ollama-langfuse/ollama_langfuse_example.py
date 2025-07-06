@@ -18,6 +18,9 @@ from langfuse.openai import OpenAI
 # Load environment variables
 load_dotenv()
 
+# Get model from environment or use default
+model = os.getenv('OLLAMA_MODEL', 'llama3.1:8b')
+
 def main(session_id=None):
     # Initialize the Langfuse OpenAI client
     # Configure it to use Ollama's OpenAI-compatible endpoint
@@ -27,6 +30,7 @@ def main(session_id=None):
     )
     
     print("🚀 Starting Ollama + Langfuse integration example...")
+    print(f"📦 Using model: {model}")
     if session_id:
         print(f"📍 Session ID: {session_id}")
     print(f"📊 Langfuse host: {os.getenv('LANGFUSE_HOST')}")
@@ -42,7 +46,7 @@ def main(session_id=None):
     
     response = client.chat.completions.create(
         name="ollama-traces",
-        model="llama3.1:8b",
+        model=model,
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "Who was the first person to step on the moon?"}
@@ -69,7 +73,7 @@ def main(session_id=None):
     
     response = client.chat.completions.create(
         name="ollama-traces",
-        model="llama3.1:8b",
+        model=model,
         messages=messages,
         metadata=metadata
     )
@@ -86,7 +90,7 @@ def main(session_id=None):
     
     calc_response = client.chat.completions.create(
         name="ollama-traces",
-        model="llama3.1:8b",
+        model=model,
         messages=[
             {"role": "system", "content": "You are a very accurate calculator. You output only the result of the calculation."},
             {"role": "user", "content": "What is 12 * 15?"}

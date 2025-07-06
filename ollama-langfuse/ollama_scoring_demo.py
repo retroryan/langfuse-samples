@@ -33,6 +33,9 @@ import hashlib
 # Load environment variables
 load_dotenv()
 
+# Get model from environment or use default
+model = os.getenv('OLLAMA_MODEL', 'llama3.1:8b')
+
 # Initialize Langfuse client for scoring
 langfuse_client = Langfuse()
 
@@ -217,6 +220,7 @@ def main(session_id=None):
         session_id = f"scoring-demo-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     
     print("🎯 Starting Ollama + Langfuse Scoring Demo")
+    print(f"📦 Using model: {model}")
     print(f"📊 Session ID: {session_id}")
     print(f"🌐 Langfuse host: {os.getenv('LANGFUSE_HOST')}")
     print("=" * 70)
@@ -238,7 +242,7 @@ def main(session_id=None):
             # Make the API call with tracing
             response = client.chat.completions.create(
                 name=f"scoring-{test_case['name']}",
-                model="llama3.1:8b",
+                model=model,
                 messages=[
                     {"role": "system", "content": test_case["system"]},
                     {"role": "user", "content": test_case["user"]}

@@ -22,6 +22,9 @@ import base64
 # Load environment variables
 load_dotenv()
 
+# Get model from environment or use default
+model = os.getenv('OLLAMA_MODEL', 'llama3.1:8b')
+
 def check_service(name, url, timeout=5):
     """Check if a service is available"""
     try:
@@ -45,16 +48,19 @@ def main():
         sys.exit(1)
     
     # Check if model is available
-    print("Checking for llama3.1:8b model...", end=" ")
+    print(f"Checking for {model} model...", end=" ")
     try:
         response = requests.get("http://localhost:11434/api/tags")
-        models = response.json().get("models", [])
-        has_model = any("llama3.1:8b" in model.get("name", "") for model in models)
+        models_list = response.json().get("models", [])
+        has_model = any(model in m.get("name", "") for m in models_list)
         if has_model:
             print("✅ Available")
         else:
             print("❌ Not found")
-            print("Please pull the model: 'ollama pull llama3.1:8b'")
+            print(f"Please pull the model: 'ollama pull {model}'")
+            available = [m.get("name", "") for m in models_list]
+            if available:
+                print(f"Available models: {', '.join(available)}")
             sys.exit(1)
     except:
         print("❌ Could not check models")

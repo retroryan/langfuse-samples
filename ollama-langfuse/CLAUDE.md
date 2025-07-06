@@ -4,116 +4,99 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This repository contains sample integrations demonstrating how to use Langfuse observability with different LLM frameworks and services. It includes examples for:
-
-- **ollama-langfuse**: Integration with local Ollama models using OpenAI-compatible API
-- **strands-langfuse**: Integration with AWS Strands agents and Bedrock models using OpenTelemetry
+This is an Ollama + Langfuse integration example that demonstrates how to use local Ollama models with Langfuse observability for tracing, monitoring, and scoring LLM responses.
 
 ## Common Development Commands
 
-### Python Examples (ollama-langfuse, strands-langfuse)
+### Initial Setup
 
 ```bash
-# Install dependencies for a specific example
-cd [example-directory]
+# Run interactive setup script
+python setup.py
+
+# This will:
+# - Check if Ollama is running
+# - List available models and help you select one
+# - Configure Langfuse credentials
+# - Create a .env file with all settings
+```
+
+### Running Examples
+
+```bash
+# Install dependencies
 pip install -r requirements.txt
 
-# Run basic examples
-python [framework]_langfuse_example.py
+# Basic examples
+python ollama_langfuse_example.py      # Basic tracing example
+python ollama_monty_python_demo.py     # Multi-turn conversation demo
+python ollama_scoring_demo.py          # Automated scoring demo
 
-# Run Monty Python themed demos
-python [framework]_monty_python_demo.py
-
-# Run scoring demos (automated response evaluation)
-python [framework]_scoring_demo.py
-
-# Run with validation (checks traces were created)
-python run_and_validate.py        # Runs Monty Python demo by default
-python run_and_validate.py basic  # Runs basic example
-
-# Run scoring with validation
-python run_scoring_and_validate.py
+# Run with validation (checks if traces were created)
+python run_and_validate.py             # Validates basic or Monty Python demo
+python run_and_validate.py simple      # Validates basic example specifically
+python run_scoring_and_validate.py     # Runs and validates scoring demo
 
 # View recent traces via API
 python view_traces.py
 ```
 
-### Root Level Debug Utilities
-
-```bash
-# Debug score API endpoints
-python debug_scores_api.py
-
-# Clean up test metrics (with prompts)
-python delete_metrics.py          # Interactive cleanup
-python delete_metrics.py traces   # Delete only traces
-python delete_metrics.py scores   # Delete only scores
-```
-
 ## High-Level Architecture
 
-### Integration Patterns
+### Integration Pattern
 
-1. **Ollama Integration**
-   - Uses Langfuse's OpenAI SDK wrapper for automatic tracing
-   - Requires local Ollama service running on port 11434
-   - Supports deterministic trace IDs via metadata
-   - Dependencies: `langfuse>=2.53.3`, `openai>=1.0.0`
+The integration uses Langfuse's OpenAI SDK wrapper to automatically trace all Ollama API calls:
 
-2. **Strands Integration**
-   - Uses OpenTelemetry (OTEL) instrumentation
-   - Requires explicit telemetry initialization (not automatic!)
-   - Must use signal-specific endpoint: `/api/public/otel/v1/traces`
-   - See `strands-langfuse/KEY_STRANDS_LANGFUSE.md` for critical setup details
-   - Dependencies: `strands-agents[otel]>=0.2.0`, `boto3>=1.34.0`
+```python
+from langfuse.openai import OpenAI
+
+client = OpenAI(
+    base_url='http://localhost:11434/v1',
+    api_key='ollama'
+)
+```
+
+This automatically captures:
+- Request/response content
+- Latency measurements  
+- Token usage (input/output/total)
+- Custom metadata (session IDs, user IDs, tags)
 
 ### Key Components
 
-- **Trace Validation**: Each example includes `run_and_validate.py` that:
-  - Checks service availability
-  - Runs the example with unique session ID
-  - Queries Langfuse API to verify traces were created
-  - Displays trace metrics and validation results
+1. **Trace Validation System** (`run_and_validate.py`):
+   - Generates unique session IDs for test runs
+   - Checks service availability (Ollama and Langfuse)
+   - Runs examples and queries Langfuse API to verify trace creation
+   - Handles both quoted and unquoted session IDs in responses
+   - Displays detailed trace metrics and observations
 
-- **Scoring System**: Automated response evaluation with:
-  - Test cases with expected answers
-  - Multiple scoring methods (exact match, keyword match)
-  - Numeric scores (0.0-1.0) and categorical results
-  - Intentional wrong answers to validate scoring accuracy
-  - Results saved to timestamped JSON files
+2. **Scoring System** (`ollama_scoring_demo.py`):
+   - Tests LLM responses with intentional correct/incorrect answers
+   - Multiple scoring methods: exact_match, keyword_match
+   - Creates both numeric (0.0-1.0) and categorical scores
+   - Generates deterministic trace IDs using MD5 hashing
+   - Saves results to timestamped JSON files
 
-## Environment Setup
+3. **Score Validation** (`run_scoring_and_validate.py`):
+   - Validates expected pass/fail behavior (tests ending in "_correct" should pass, "_wrong" should fail)
+   - Queries Langfuse scores API with proper Basic Auth
+   - Groups scores by trace and provides statistics
+   - Includes cleanup suggestions for old result files
 
-Each example directory contains a `.env` file with configuration:
-- **ollama-langfuse**: Points to local Langfuse (http://localhost:3000)
-- **strands-langfuse**: Requires AWS credentials and Bedrock configuration
+### Environment Configuration
 
-Common environment variables:
-```bash
-LANGFUSE_PUBLIC_KEY=your-public-key
-LANGFUSE_SECRET_KEY=your-secret-key
-LANGFUSE_HOST=http://localhost:3000
-AWS_REGION=us-east-1
-BEDROCK_REGION=us-east-1
-BEDROCK_MODEL_ID=us.anthropic.claude-3-5-sonnet-20241022-v2:0
-```
+The `.env` file (created by setup.py) contains:
+- `OLLAMA_MODEL` - The selected Ollama model to use
+- `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` for API authentication
+- `LANGFUSE_HOST` (default: http://localhost:3000)
 
-## Testing Approach
+### Important Implementation Details
 
-Since these are example integrations, testing focuses on:
-- Service connectivity (Ollama, Langfuse, AWS)
-- Trace creation validation
-- API response verification
-- Score recording confirmation
-
-The scoring demos use a pattern of intentional wrong answers:
-- Tests ending in "_correct" should pass (score ≥ 0.8)
-- Tests ending in "_wrong" should fail (score < 0.8)
-
-## Important Notes
-
-- All examples expect Langfuse to be running (locally via Docker or cloud)
-- AWS examples require valid Bedrock access in the configured region
-- Token usage and latency metrics are automatically captured in traces
-- The repository uses direct Python script execution without a formal build system
-- For Strands integration issues, consult `strands-langfuse/KEY_STRANDS_LANGFUSE.md` first
+- Ollama must be running on port 11434
+- Model is configured via OLLAMA_MODEL in .env (setup.py helps select this)
+- All demos read the model from environment variable with fallback to llama3.1:8b
+- Trace IDs can be deterministic (scoring demo) or UUID-based (validation scripts)
+- Session IDs are passed as command-line arguments to demos
+- Scores are sent with proper data types (NUMERIC or CATEGORICAL)
+- All examples include proper event flushing before exit

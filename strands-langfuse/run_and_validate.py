@@ -4,13 +4,14 @@ Run the Strands + Langfuse demo and validate that traces were created.
 
 This script:
 1. Checks that required services are accessible (Langfuse, AWS)
-2. Runs the demo script (Monty Python by default, or simple demo)
+2. Runs the demo using main.py
 3. Queries Langfuse API to verify traces were created
 4. Displays detailed trace information
 
 Usage:
-    python run_and_validate.py           # Runs Monty Python demo (default)
-    python run_and_validate.py simple    # Runs simple demo
+    python run_and_validate.py                # Runs Monty Python demo (default)
+    python run_and_validate.py examples       # Runs examples demo  
+    python run_and_validate.py scoring        # Runs scoring demo
 """
 
 import subprocess
@@ -107,35 +108,65 @@ def get_recent_traces(from_time, run_id=None):
         print(f"❌ Error fetching traces: {e}")
         return []
 
-def run_demo(script_name='strands_monty_python_demo.py'):
-    """Run the demo script"""
-    if not os.path.exists(script_name):
-        print(f"❌ Demo script not found: {script_name}")
-        return None
-    
-    print(f"\n🚀 Running {script_name}...")
+def run_demo(demo_name='monty_python'):
+    """Run the demo using main.py"""
+    print(f"\n🚀 Running {demo_name} demo...")
     print("=" * 80)
+    print("📊 Demo output will appear below:")
+    print("-" * 80)
     
     # Record start time for trace filtering
     start_time = datetime.now(timezone.utc)
     
-    # Run the script
-    result = subprocess.run([sys.executable, script_name], capture_output=True, text=True)
+    # Run main.py with the demo name - stream output in real-time
+    process = subprocess.Popen(
+        [sys.executable, 'main.py', demo_name],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1
+    )
     
-    print(result.stdout)
-    if result.stderr:
-        print("STDERR:", result.stderr)
+    # Collect output for parsing while displaying it
+    full_output = []
     
-    if result.returncode != 0:
-        print(f"❌ Script failed with exit code: {result.returncode}")
+    # Stream output line by line
+    for line in iter(process.stdout.readline, ''):
+        if line:
+            print(line.rstrip())
+            sys.stdout.flush()  # Ensure immediate output
+            full_output.append(line)
+    
+    # Wait for process to complete
+    process.wait()
+    
+    if process.returncode != 0:
+        print(f"\n❌ Demo failed with exit code: {process.returncode}")
         return None
     
-    # Extract run ID from output
+    # Join output for parsing
+    output_text = ''.join(full_output)
+    
+    # Extract session ID from output
+    session_id = None
+    for line in output_text.split('\n'):
+        if "Session ID:" in line:
+            session_id = line.split("Session ID:")[-1].strip()
+            break
+    
+    # Extract Run ID if present (for specific demos)
     run_id = None
-    for line in result.stdout.split('\n'):
+    for line in output_text.split('\n'):
         if "Run ID:" in line:
             run_id = line.split("Run ID:")[-1].strip()
             break
+    
+    # Use session ID as fallback for run_id
+    if not run_id and session_id:
+        run_id = session_id
+    
+    print("-" * 80)
+    print("✅ Demo execution completed")
     
     return start_time, run_id
 
@@ -145,8 +176,13 @@ def validate_traces(start_time, run_id):
     print("=" * 80)
     
     # Wait for traces to be processed
-    print("⏳ Waiting for traces to be processed...")
-    time.sleep(8)
+    wait_time = 8
+    print(f"⏳ Waiting {wait_time}s for traces to be processed", end="")
+    for i in range(wait_time):
+        print(".", end="")
+        sys.stdout.flush()
+        time.sleep(1)
+    print(" Done!")
     
     # Fetch recent traces
     traces = get_recent_traces(start_time, run_id)
@@ -265,12 +301,18 @@ def main():
     print("=" * 80)
     
     # Determine which demo to run
-    if len(sys.argv) > 1 and sys.argv[1] == 'simple':
-        script_name = 'strands_langfuse_demo.py'
-        print("🎯 Running simple demo mode")
-    else:
-        script_name = 'strands_monty_python_demo.py'
-        print("🦜 Running Monty Python demo mode (default)")
+    valid_demos = ['monty_python', 'examples', 'scoring']
+    demo_name = 'monty_python'  # default
+    
+    if len(sys.argv) > 1:
+        if sys.argv[1] in valid_demos:
+            demo_name = sys.argv[1]
+        else:
+            print(f"❌ Invalid demo: {sys.argv[1]}")
+            print(f"   Valid options: {', '.join(valid_demos)}")
+            return 1
+    
+    print(f"🎯 Selected demo: {demo_name}")
     
     # Step 1: Check prerequisites
     print("\n1️⃣ Checking prerequisites...")
@@ -289,7 +331,7 @@ def main():
     
     # Step 2: Run demo
     print("\n2️⃣ Running Strands + Langfuse demo...")
-    result = run_demo(script_name)
+    result = run_demo(demo_name)
     if not result:
         return 1
     

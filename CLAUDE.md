@@ -8,7 +8,7 @@ This repository contains sample integrations demonstrating how to use Langfuse o
 
 - **ollama-langfuse**: Integration with local Ollama models using OpenAI-compatible API
 - **strands-langfuse**: Integration with AWS Strands agents and Bedrock models using OpenTelemetry
-- **quick-fuse**: Simplified demonstration of Strands + Langfuse integration for quick prototyping
+- **langfuse-aws**: Cost-optimized AWS CDK deployment of Langfuse infrastructure (~$75-100/month)
 
 ## Common Development Commands
 
@@ -45,11 +45,37 @@ python debug_scores_detailed.py   # Detailed score debugging
 python delete_metrics.py          # Clean up test metrics
 ```
 
+### AWS Deployment (langfuse-aws)
+
+```bash
+# Set required Python version
+pyenv local 3.12.10
+
+# Install CDK dependencies
+cd langfuse-aws
+pip install -r requirements.txt
+
+# Deploy Langfuse infrastructure
+python prepare-cdk.py           # Generate secrets and config
+python deploy-cdk.py           # Deploy all stacks (~15-20 minutes)
+
+# Monitor costs
+python cost-monitor.py          # Today's costs
+python cost-monitor.py --weekly # Past week's costs
+
+# CDK commands
+cdk synth                      # Generate CloudFormation
+cdk list                       # List all stacks
+cdk diff                       # Show changes
+cdk destroy --force --all      # Clean up all resources
+```
+
 ### Environment Setup
 
 Each example directory contains a `.env` file with configuration:
 - **ollama-langfuse**: Points to local Langfuse (http://localhost:3000)
 - **strands-langfuse**: Requires AWS credentials and Bedrock configuration
+- **langfuse-aws**: AWS credentials auto-configured by deployment scripts
 
 Common environment variables:
 - `LANGFUSE_PUBLIC_KEY`: Public API key
@@ -72,6 +98,7 @@ Common environment variables:
    - Sends traces via OTLP protocol to Langfuse
    - Supports rich trace attributes (session ID, user ID, tags)
    - Includes retry logic for trace discovery
+   - Lambda deployment examples in `strands-langfuse/lambda/`
 
 ### Key Components
 
@@ -94,6 +121,20 @@ Common environment variables:
   - User identification
   - Custom tags and metadata
 
+### AWS Infrastructure (langfuse-aws)
+
+The AWS deployment creates these resources in order:
+1. ECR repositories for container images
+2. VPC with public/private subnets
+3. Application Load Balancer
+4. RDS PostgreSQL (t4g.micro for cost optimization)
+5. S3 buckets for object storage
+6. ECS cluster with Fargate services:
+   - Langfuse Web (port 3000)
+   - Langfuse Worker (background jobs)
+   - ClickHouse (analytics database)
+7. Optional Redis cache (disabled by default)
+
 ## Testing Approach
 
 Since these are example integrations, testing focuses on:
@@ -113,3 +154,4 @@ The scoring demos use a pattern of intentional wrong answers to validate the sco
 - AWS examples require valid Bedrock access in the configured region
 - Token usage and latency metrics are automatically captured in traces
 - The repository uses direct Python script execution without a formal build system
+- For production Langfuse deployments, refer to the official AWS guide at https://github.com/aws-samples/deploy-langfuse-on-ecs-with-fargate/

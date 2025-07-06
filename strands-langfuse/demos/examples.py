@@ -1,73 +1,24 @@
 """
-Strands Agents + Langfuse Integration Demo
+Strands Agents + Langfuse Integration Demo - Multiple Examples
 
 This demo shows how to properly integrate Strands agents with Langfuse for observability.
 It includes multiple examples showcasing different use cases with proper telemetry setup.
-
-Prerequisites:
-1. AWS credentials configured for Bedrock access
-2. Langfuse running (locally or cloud)
-3. Environment variables configured in .env file
 """
-
-import os
-import base64
 import uuid
 import time
 from datetime import datetime
-from dotenv import load_dotenv
+from typing import Tuple, List, Optional
 
-# Load environment variables
-load_dotenv()
+# Initialize OTEL before importing Agent
+from core.setup import initialize_langfuse_telemetry, setup_telemetry
+from core.agent_factory import create_agent
+from core.metrics_formatter import format_dashboard_metrics
 
-# Configure Langfuse OTEL export - MUST be done BEFORE importing Strands
-langfuse_pk = os.environ.get('LANGFUSE_PUBLIC_KEY')
-langfuse_sk = os.environ.get('LANGFUSE_SECRET_KEY')
-langfuse_host = os.environ.get('LANGFUSE_HOST')
+# Initialize Langfuse OTEL
+langfuse_pk, langfuse_sk, langfuse_host = initialize_langfuse_telemetry()
 
-# Create auth token for OTEL authentication
-auth_token = base64.b64encode(f"{langfuse_pk}:{langfuse_sk}".encode()).decode()
 
-# CRITICAL: Set OTEL environment variables BEFORE importing Strands
-# Use signal-specific endpoint for traces (not the generic /api/public/otel)
-os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"{langfuse_host}/api/public/otel/v1/traces"
-os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = f"Authorization=Basic {auth_token}"
-os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = "http/protobuf"
-os.environ["OTEL_SERVICE_NAME"] = "strands-langfuse-demo"
-os.environ["OTEL_RESOURCE_ATTRIBUTES"] = "service.version=1.0.0,deployment.environment=demo"
-
-# NOW import Strands after setting environment variables
-from strands import Agent
-from strands.models.bedrock import BedrockModel
-from strands.telemetry import StrandsTelemetry
-
-# CRITICAL: Initialize telemetry explicitly - this is not automatic!
-print("🔧 Initializing StrandsTelemetry...")
-telemetry = StrandsTelemetry()
-telemetry.setup_otlp_exporter()
-print("✅ OTLP exporter configured")
-
-def create_agent(system_prompt, session_id, user_id, tags):
-    """Create an agent with Langfuse trace attributes"""
-    model = BedrockModel(
-        model_id=os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-3-5-sonnet-20241022-v2:0"),
-        region=os.environ.get("BEDROCK_REGION", "us-east-1")
-    )
-    
-    # These trace attributes will appear in Langfuse
-    agent = Agent(
-        model=model,
-        system_prompt=system_prompt,
-        trace_attributes={
-            "session.id": session_id,  # Groups related traces
-            "user.id": user_id,        # Identifies the user
-            "langfuse.tags": tags      # Custom tags for filtering
-        }
-    )
-    
-    return agent
-
-def demo_simple_chat(run_id):
+def demo_simple_chat(run_id: str) -> str:
     """Example 1: Simple single-turn chat"""
     print("\n📝 Example 1: Simple Chat")
     print("-" * 50)
@@ -85,9 +36,14 @@ def demo_simple_chat(run_id):
     response = agent(query)
     print(f"Response: {response}")
     
-    return True
+    print(format_dashboard_metrics(response, trace_id=f"simple-chat-{run_id}"))
+    
+    print("-" * 70)
+    
+    return f"simple-chat-{run_id}"
 
-def demo_multi_turn_conversation(run_id):
+
+def demo_multi_turn_conversation(run_id: str) -> str:
     """Example 2: Multi-turn conversation with context"""
     print("\n💬 Example 2: Multi-turn Conversation")
     print("-" * 50)
@@ -105,15 +61,24 @@ def demo_multi_turn_conversation(run_id):
     response1 = agent(query1)
     print(f"Turn 1 - Response: {str(response1)[:100]}...")
     
+    print(format_dashboard_metrics(response1, trace_id=f"multi-turn-{run_id}-turn1"))
+    
+    print("-" * 70)
+    
     # Second turn (references first)
     query2 = "What was his most famous military defeat?"
     print(f"\nTurn 2 - Query: {query2}")
     response2 = agent(query2)
     print(f"Turn 2 - Response: {response2}")
     
-    return True
+    print(format_dashboard_metrics(response2, trace_id=f"multi-turn-{run_id}-turn2"))
+    
+    print("-" * 70)
+    
+    return f"multi-turn-{run_id}"
 
-def demo_task_specific_agent(run_id):
+
+def demo_task_specific_agent(run_id: str) -> str:
     """Example 3: Task-specific agent (calculator)"""
     print("\n🧮 Example 3: Task-Specific Agent (Calculator)")
     print("-" * 50)
@@ -135,10 +100,19 @@ def demo_task_specific_agent(run_id):
         print(f"Calculate: {calc}")
         result = agent(calc)
         print(f"Result: {result}")
+        
+        calc_idx = calculations.index(calc)
+        print(format_dashboard_metrics(result, trace_id=f"calculator-{run_id}-calc{calc_idx+1}"))
+        
+        if calc != calculations[-1]:  # Don't print separator after last calculation
+            print("")
     
-    return True
+    print("-" * 70)
+    
+    return f"calculator-{run_id}"
 
-def demo_creative_writing(run_id):
+
+def demo_creative_writing(run_id: str) -> str:
     """Example 4: Creative writing agent"""
     print("\n✍️ Example 4: Creative Writing Agent")
     print("-" * 50)
@@ -156,15 +130,29 @@ def demo_creative_writing(run_id):
     haiku = agent(f"Write a haiku about {topic}")
     print(f"Haiku:\n{haiku}")
     
-    return True
+    print(format_dashboard_metrics(haiku, trace_id=f"creative-{run_id}"))
+    
+    print("-" * 70)
+    
+    return f"creative-{run_id}"
 
-def main():
-    """Run all demos"""
+
+def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
+    """
+    Run all examples with the provided or generated session ID.
+    
+    Args:
+        session_id: Optional session ID (will generate if not provided)
+        
+    Returns:
+        Tuple of (session_id, trace_ids)
+    """
+    # Setup telemetry
+    telemetry = setup_telemetry("strands-langfuse-demo")
+    
     print("\n🚀 Strands Agents + Langfuse Integration Demo")
     print("=" * 70)
     print(f"📊 Langfuse host: {langfuse_host}")
-    print(f"🤖 Bedrock model: {os.getenv('BEDROCK_MODEL_ID')}")
-    print(f"🌍 AWS region: {os.getenv('BEDROCK_REGION')}")
     
     # Generate unique run ID for this execution
     run_id = str(uuid.uuid4())[:8]
@@ -172,6 +160,12 @@ def main():
     print(f"🎨 Run ID: {run_id}")
     print(f"⏰ Timestamp: {timestamp}")
     print("=" * 70)
+    
+    # If session_id provided, use it as the main session
+    if not session_id:
+        session_id = f"examples-demo-{timestamp}"
+    
+    trace_ids = []
     
     try:
         # Run all demos
@@ -183,10 +177,8 @@ def main():
         ]
         
         for demo in demos:
-            success = demo(run_id)
-            if not success:
-                print(f"❌ Demo {demo.__name__} failed")
-                return False
+            demo_session = demo(run_id)
+            trace_ids.append(demo_session)
             time.sleep(1)  # Small delay between demos
         
         # Force flush telemetry to ensure all traces are sent
@@ -204,14 +196,14 @@ def main():
         print(f"   Filter by run ID: {run_id}")
         print(f"   Filter by tags: strands-demo, run-{run_id}")
         
-        return True
+        return session_id, trace_ids
         
     except Exception as e:
         print(f"\n❌ Error running demos: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        return session_id, trace_ids
+
 
 if __name__ == "__main__":
-    success = main()
-    exit(0 if success else 1)
+    run_demo()

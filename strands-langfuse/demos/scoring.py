@@ -4,66 +4,21 @@ Strands Agents + Langfuse Scoring Demo
 This demo showcases how to automatically score AWS Strands agents responses using 
 Langfuse's scoring capabilities. It tests various scenarios where agents should give
 correct or incorrect answers, then scores their responses programmatically.
-
-Prerequisites:
-1. AWS credentials must be configured
-2. Langfuse must be running (locally via Docker or cloud)
-3. Configure environment variables in .env file
-
-Features:
-- Automatic response evaluation using different scoring methods
-- Multiple score types (numeric and categorical)
-- Detailed reasoning for each score
-- Session tracking for grouped analysis
-- Results saved to JSON for further analysis
 """
-
-import os
 import sys
 import json
 import time
-import base64
 import hashlib
 from datetime import datetime
-from dotenv import load_dotenv
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple, Optional
 
-# Load environment variables
-load_dotenv()
+# Initialize OTEL before importing Agent
+from core.setup import initialize_langfuse_telemetry, setup_telemetry, get_langfuse_client
+from core.agent_factory import create_agent
+from core.metrics_formatter import format_dashboard_metrics
 
-# Configure Langfuse OTEL export - MUST be done BEFORE importing Strands
-langfuse_pk = os.environ.get('LANGFUSE_PUBLIC_KEY')
-langfuse_sk = os.environ.get('LANGFUSE_SECRET_KEY')
-langfuse_host = os.environ.get('LANGFUSE_HOST')
-
-# Create auth token for OTEL authentication
-auth_token = base64.b64encode(f"{langfuse_pk}:{langfuse_sk}".encode()).decode()
-
-# CRITICAL: Set OTEL environment variables BEFORE importing Strands
-os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"{langfuse_host}/api/public/otel/v1/traces"
-os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = f"Authorization=Basic {auth_token}"
-os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = "http/protobuf"
-os.environ["OTEL_SERVICE_NAME"] = "strands-scoring-demo"
-os.environ["OTEL_RESOURCE_ATTRIBUTES"] = "service.version=1.0.0,deployment.environment=demo"
-
-# NOW import Strands after setting environment variables
-from strands import Agent
-from strands.models.bedrock import BedrockModel
-from strands.telemetry import StrandsTelemetry
-from langfuse import Langfuse
-
-# Initialize telemetry
-print("🔧 Initializing StrandsTelemetry...")
-telemetry = StrandsTelemetry()
-telemetry.setup_otlp_exporter()
-print("✅ OTLP exporter configured")
-
-# Initialize Langfuse client for scoring
-langfuse_client = Langfuse(
-    public_key=langfuse_pk,
-    secret_key=langfuse_sk,
-    host=langfuse_host
-)
+# Initialize Langfuse OTEL
+langfuse_pk, langfuse_sk, langfuse_host = initialize_langfuse_telemetry()
 
 # Test cases with expected behaviors
 TEST_CASES = [
@@ -225,15 +180,6 @@ def evaluate_response(response: str, test_case: Dict[str, Any]) -> Dict[str, Any
         return {"score": 0.5, "reasoning": f"Unknown scoring method: {method}"}
 
 
-def generate_trace_id(session_id: str, test_case_name: str) -> str:
-    """Generate a deterministic trace ID based on session and test case"""
-    # Create a deterministic but unique trace ID
-    base_string = f"{session_id}-{test_case_name}"
-    # Use a simple hash to create a 32-character hex string
-    hash_object = hashlib.md5(base_string.encode())
-    return hash_object.hexdigest()
-
-
 def find_trace_for_test(session_id: str, test_case_name: str, max_retries: int = 5):
     """Find the trace for a specific test case using Langfuse API"""
     # Wait for trace to be processed
@@ -274,7 +220,6 @@ def find_trace_for_test(session_id: str, test_case_name: str, max_retries: int =
                 # Parse attr_tags if it's a JSON string
                 if isinstance(attr_tags, str):
                     try:
-                        import json
                         attr_tags = json.loads(attr_tags)
                     except:
                         attr_tags = []
@@ -301,12 +246,21 @@ def find_trace_for_test(session_id: str, test_case_name: str, max_retries: int =
     return None
 
 
-def main(session_id=None):
-    # Configure the Bedrock model
-    model = BedrockModel(
-        model_id=os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-3-5-sonnet-20241022-v2:0"),
-        region=os.environ.get("BEDROCK_REGION", "us-east-1")
-    )
+def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
+    """
+    Run the scoring demo with the provided or generated session ID.
+    
+    Args:
+        session_id: Optional session ID (will generate if not provided)
+        
+    Returns:
+        Tuple of (session_id, trace_ids)
+    """
+    # Setup telemetry
+    telemetry = setup_telemetry("strands-scoring-demo")
+    
+    # Initialize Langfuse client for scoring
+    langfuse_client = get_langfuse_client(langfuse_pk, langfuse_sk, langfuse_host)
     
     if not session_id:
         session_id = f"scoring-demo-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
@@ -314,7 +268,6 @@ def main(session_id=None):
     print("🎯 Starting Strands Agents + Langfuse Scoring Demo")
     print(f"📊 Session ID: {session_id}")
     print(f"🌐 Langfuse host: {langfuse_host}")
-    print(f"🤖 Using model: {os.environ.get('BEDROCK_MODEL_ID', 'us.anthropic.claude-3-5-sonnet-20241022-v2:0')}")
     print("=" * 70)
     
     results = []
@@ -328,13 +281,12 @@ def main(session_id=None):
         
         try:
             # Create agent with test-specific attributes
-            agent = Agent(
-                model=model,
+            agent = create_agent(
                 system_prompt=test_case["system"],
-                trace_attributes={
-                    "session.id": session_id,
-                    "user.id": "scoring-evaluator",
-                    "langfuse.tags": ["strands-scoring", test_case["name"], test_case["category"]],
+                session_id=session_id,
+                user_id="scoring-evaluator",
+                tags=["strands-scoring", test_case["name"], test_case["category"]],
+                **{
                     "test.name": test_case["name"],
                     "test.category": test_case["category"],
                     "test.expected": test_case["expected_answer"],
@@ -347,7 +299,10 @@ def main(session_id=None):
             answer = str(response)
             
             print(f"🤖 Response: {answer[:150]}{'...' if len(answer) > 150 else ''}")
-            print(f"📊 Metrics: {response.metrics.accumulated_usage['totalTokens']} tokens, {response.metrics.accumulated_metrics['latencyMs']}ms")
+            
+            # Generate a trace ID for this test
+            test_trace_id = f"{session_id}-{test_case['name']}"
+            print(format_dashboard_metrics(response, trace_id=test_trace_id))
             
             # Evaluate the response
             score_result = evaluate_response(answer, test_case)
@@ -363,6 +318,8 @@ def main(session_id=None):
             
             print(f"{score_emoji} Score: {score_value:.2f}")
             print(f"💭 Reasoning: {score_result['reasoning']}")
+            
+            print("-" * 70)
             
             # Force flush telemetry before finding trace
             if hasattr(telemetry, 'tracer_provider') and hasattr(telemetry.tracer_provider, 'force_flush'):
@@ -485,19 +442,6 @@ def main(session_id=None):
         cat_avg = sum(scores) / len(scores)
         print(f"  {cat}: {cat_avg:.2f} (n={len(scores)})")
     
-    # Detailed results
-    print("\n📋 Detailed Results:")
-    print("-" * 70)
-    for r in results:
-        status = "✅" if r["score"] >= 0.8 else "⚠️" if r["score"] >= 0.5 else "❌"
-        print(f"{status} {r['test_case']}: {r['score']:.2f}")
-        print(f"   Expected: {r['expected']}")
-        print(f"   Got: {r['actual'][:100]}{'...' if len(r['actual']) > 100 else ''}")
-        print(f"   {r['reasoning']}")
-        if r['trace_id'] != 'error' and r['trace_id'] != 'not-found':
-            print(f"   Trace ID: {r['trace_id']}")
-        print()
-    
     # Save results
     output_file = f"scoring_results_{session_id}.json"
     with open(output_file, "w") as f:
@@ -537,4 +481,4 @@ def main(session_id=None):
 if __name__ == "__main__":
     # Check if session ID was passed as command line argument
     session_id = sys.argv[1] if len(sys.argv) > 1 else None
-    main(session_id)
+    run_demo(session_id)
