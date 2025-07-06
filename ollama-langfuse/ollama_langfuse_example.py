@@ -64,7 +64,7 @@ def main(session_id=None):
         model=model,
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Who was the first person to step on the moon?"}
+            {"role": "user", "content": "What's a fun fact about ocean waves that most people don't know?"}
         ],
         metadata=metadata  # Custom data attached to trace
     )
@@ -76,10 +76,10 @@ def main(session_id=None):
     print("\n💬 Example 2: Multi-turn conversation")
     
     messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Who was the first person to step on the moon?"},
-        {"role": "assistant", "content": "Neil Armstrong was the first person to step on the moon on July 20, 1969, during the Apollo 11 mission."},
-        {"role": "user", "content": "What were his first words when he stepped on the moon?"}
+        {"role": "system", "content": "You are an enthusiastic oceanographer who loves sharing fascinating facts about ocean waves."},
+        {"role": "user", "content": "How powerful can ocean waves get? What's the most powerful wave ever recorded?"},
+        {"role": "assistant", "content": "Ocean waves can be incredibly powerful! A single breaking wave can release more than 250,000 horsepower per meter of wave crest. The most powerful wave ever recorded was the 1958 Lituya Bay megatsunami in Alaska, which reached an astounding height of 1,720 feet (524 meters) - taller than the Empire State Building! This was triggered by an earthquake-induced landslide."},
+        {"role": "user", "content": "That's incredible! How tall was the biggest wave ever recorded?"}
     ]
     
     metadata = {"example": "multi-turn"}

@@ -12,13 +12,13 @@ from typing import Tuple, List, Optional
 # Initialize OTEL before importing Agent
 from core.setup import initialize_langfuse_telemetry, setup_telemetry
 from core.agent_factory import create_agent
-from core.metrics_formatter import format_dashboard_metrics
+from core.metrics_formatter import format_dashboard_metrics, TokenAggregator
 
 # Initialize Langfuse OTEL
 langfuse_pk, langfuse_sk, langfuse_host = initialize_langfuse_telemetry()
 
 
-def demo_simple_chat(run_id: str) -> str:
+def demo_simple_chat(run_id: str, aggregator: TokenAggregator) -> str:
     """Example 1: Simple single-turn chat"""
     print("\n📝 Example 1: Simple Chat")
     print("-" * 50)
@@ -37,48 +37,51 @@ def demo_simple_chat(run_id: str) -> str:
     print(f"Response: {response}")
     
     print(format_dashboard_metrics(response, trace_id=f"simple-chat-{run_id}"))
+    aggregator.add_response(response, "Simple Chat")
     
     print("-" * 70)
     
     return f"simple-chat-{run_id}"
 
 
-def demo_multi_turn_conversation(run_id: str) -> str:
+def demo_multi_turn_conversation(run_id: str, aggregator: TokenAggregator) -> str:
     """Example 2: Multi-turn conversation with context"""
     print("\n💬 Example 2: Multi-turn Conversation")
     print("-" * 50)
     
     agent = create_agent(
-        system_prompt="You are a helpful history teacher. Remember our conversation context.",
+        system_prompt="You are an enthusiastic oceanographer who loves sharing fascinating facts about ocean waves. Remember our conversation context.",
         session_id=f"demo-multi-turn-{run_id}",
         user_id="demo-user",
         tags=["strands-demo", "multi-turn", f"run-{run_id}"]
     )
     
     # First turn
-    query1 = "Who was Napoleon Bonaparte?"
+    query1 = "How powerful can ocean waves get? What's the most powerful wave ever recorded?"
     print(f"Turn 1 - Query: {query1}")
     response1 = agent(query1)
-    print(f"Turn 1 - Response: {str(response1)[:100]}...")
+    print(f"Turn 1 - Response: {str(response1)[:100]}...\n")
     
     print(format_dashboard_metrics(response1, trace_id=f"multi-turn-{run_id}-turn1"))
+    aggregator.add_response(response1, "Multi-turn Q1")
     
     print("-" * 70)
     
     # Second turn (references first)
-    query2 = "What was his most famous military defeat?"
+    query2 = "That's incredible! How tall was the biggest wave ever recorded?"
     print(f"\nTurn 2 - Query: {query2}")
     response2 = agent(query2)
     print(f"Turn 2 - Response: {response2}")
     
     print(format_dashboard_metrics(response2, trace_id=f"multi-turn-{run_id}-turn2"))
+    aggregator.add_response(response2, "Multi-turn Q2")
     
     print("-" * 70)
     
     return f"multi-turn-{run_id}"
 
 
-def demo_task_specific_agent(run_id: str) -> str:
+def demo_task_specific_agent(run_id: str, aggregator: TokenAggregator) -> str:
     """Example 3: Task-specific agent (calculator)"""
     print("\n🧮 Example 3: Task-Specific Agent (Calculator)")
     print("-" * 50)
@@ -103,6 +106,7 @@ def demo_task_specific_agent(run_id: str) -> str:
         
         calc_idx = calculations.index(calc)
         print(format_dashboard_metrics(result, trace_id=f"calculator-{run_id}-calc{calc_idx+1}"))
+        aggregator.add_response(result, f"Calculator: {calc}")
         
         if calc != calculations[-1]:  # Don't print separator after last calculation
             print("")
@@ -112,7 +116,7 @@ def demo_task_specific_agent(run_id: str) -> str:
     return f"calculator-{run_id}"
 
 
-def demo_creative_writing(run_id: str) -> str:
+def demo_creative_writing(run_id: str, aggregator: TokenAggregator) -> str:
     """Example 4: Creative writing agent"""
     print("\n✍️ Example 4: Creative Writing Agent")
     print("-" * 50)
@@ -131,6 +135,7 @@ def demo_creative_writing(run_id: str) -> str:
     print(f"Haiku:\n{haiku}")
     
     print(format_dashboard_metrics(haiku, trace_id=f"creative-{run_id}"))
+    aggregator.add_response(haiku, "Creative Writing")
     
     print("-" * 70)
     
@@ -149,6 +154,9 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
     """
     # Setup telemetry
     telemetry = setup_telemetry("strands-langfuse-demo")
+    
+    # Initialize token aggregator for cost tracking
+    aggregator = TokenAggregator()
     
     print("\n🚀 Strands Agents + Langfuse Integration Demo")
     print("=" * 70)
@@ -177,7 +185,7 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
         ]
         
         for demo in demos:
-            demo_session = demo(run_id)
+            demo_session = demo(run_id, aggregator)
             trace_ids.append(demo_session)
             time.sleep(1)  # Small delay between demos
         
@@ -191,6 +199,11 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
         time.sleep(3)
         
         print("\n✅ All demos completed successfully!")
+        
+        # Display total cost summary with traces info
+        print(aggregator.format_total_cost())
+        print(f"\n📊 Traces sent to Langfuse: {len(trace_ids)}")
+        
         print(f"\n🔍 View your traces in Langfuse:")
         print(f"   URL: {langfuse_host}")
         print(f"   Filter by run ID: {run_id}")

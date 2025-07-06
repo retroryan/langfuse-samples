@@ -8,11 +8,11 @@
 - [x] **Phase 3: Main Entry Point** - Implemented unified main.py with interactive menu
 - [x] **Phase 4: Validation Scripts** - Updated validation scripts to use new structure
 - [x] **Phase 5: Lambda Integration** - Created lambda_handler.py and updated build process
+- [x] **Phase 6: CloudFormation Migration** - Migrated from CDK to clean CloudFormation deployment
+- [x] **Phase 7: Documentation Cleanup** - Simplified READMEs for better clarity
 
 ### Remaining Phases
-- [ ] **Phase 6: Infrastructure Updates** - Update CDK, setup.py, and project configs
-- [ ] **Phase 7: Integration Testing** - Test all components end-to-end
-- [ ] **Phase 8: Documentation & Cleanup** - Update docs and remove old files
+- [ ] **Phase 8: Final Testing & Polish** - End-to-end testing and final cleanup
 
 ## What We Built
 
@@ -144,6 +144,87 @@ strands-langfuse/
 - Returns `(session_id, trace_ids)` for validation
 - Easy to add new demos by following the pattern
 
+## CloudFormation Migration (Completed)
+
+### What We Achieved
+
+We successfully migrated from CDK to a clean CloudFormation deployment:
+
+**Previous CDK Structure:**
+- Required Node.js and CDK CLI installation
+- 100+ lines of Python CDK code
+- Additional complexity for a simple Lambda demo
+- Multiple build scripts and deployment artifacts
+
+**New CloudFormation Structure:**
+```
+lambda/
+├── lambda_handler.py          # Single handler file
+├── cloudformation/
+│   └── template.yaml         # Clean CloudFormation template
+├── build-layers.sh           # Docker-based layer builder
+├── deploy-cfn.sh            # Simple deployment script
+├── test-docker.sh           # Local Docker testing
+└── README.md                # Simplified instructions
+```
+
+**Key Improvements:**
+1. **Reduced Function Size**: From 37MB to ~50KB using Lambda layers
+2. **Clean Architecture**: Separated base dependencies and Strands-specific layers
+3. **Simple Deployment**: One-command deployment with `./deploy-cfn.sh`
+4. **Local Testing**: Docker-based testing without AWS credentials
+5. **No Additional Dependencies**: Uses AWS CLI directly, no CDK/Node.js required
+
+### Lambda Layer Architecture
+
+We implemented an optimized layer structure:
+- **Base Dependencies Layer** (~30MB): boto3, langfuse, OpenTelemetry
+- **Strands Layer** (~25MB): strands-agents with OTEL support
+- **Function Code** (~50KB): Just the handler and business logic
+
+This separation allows for:
+- Faster deployments (only update function code for logic changes)
+- Better cold start performance
+- Easier dependency management
+- Cleaner separation of concerns
+
 ## Summary
 
-The reorganization successfully modernized the codebase while maintaining all functionality. The modular architecture eliminates duplication, provides a clean API, and makes the project easier to understand and extend. Lambda integration is complete with support for all demo modes through a single handler.
+The reorganization and CloudFormation migration have successfully modernized the codebase:
+
+### ✅ Completed Achievements
+
+1. **Modular Architecture**: Eliminated 150+ lines of duplicated code with shared core modules
+2. **Unified Entry Point**: Single `main.py` with interactive menu for all demos
+3. **Clean Lambda Deployment**: Migrated from CDK to simple CloudFormation
+4. **Optimized Package Size**: Reduced Lambda deployment from 37MB to ~50KB using layers
+5. **Enhanced Demo Experience**: 
+   - One-command deployment with `./deploy-cfn.sh`
+   - Local Docker testing without AWS credentials
+   - Automated trace validation
+   - Clear example outputs with curl commands
+
+### 🎯 High-Quality Demo Features
+
+The Lambda deployment now provides:
+- **Clean CloudFormation template** with helpful parameter descriptions
+- **Enhanced deployment script** with formatted output and examples
+- **Automated test script** (`test_deployed_lambda.py`) that validates traces
+- **Simple README** with just the essential commands
+- **No external dependencies** beyond AWS CLI and Docker
+
+### 📊 Final Architecture
+
+```
+lambda/
+├── lambda_handler.py          # Single clean handler (50KB)
+├── cloudformation/
+│   └── template.yaml         # Simple, well-documented template
+├── build-layers.sh           # Docker-based layer builder
+├── deploy-cfn.sh            # Enhanced deployment with examples
+├── test-docker.sh           # Local testing
+├── test_deployed_lambda.py  # Automated validation
+└── README.md                # Clean, simple instructions
+```
+
+The project is now ready as a high-quality demo showcasing Strands agents with Langfuse observability on AWS Lambda.

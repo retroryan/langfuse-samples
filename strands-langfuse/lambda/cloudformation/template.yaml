@@ -1,0 +1,178 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Strands-Langfuse Demo Lambda - OpenTelemetry observability for AWS Bedrock'
+
+Parameters:
+  # Langfuse Configuration
+  LangfusePublicKey:
+    Type: String
+    Description: Langfuse public API key
+    NoEcho: true
+  
+  LangfuseSecretKey:
+    Type: String
+    Description: Langfuse secret API key
+    NoEcho: true
+  
+  LangfuseHost:
+    Type: String
+    Description: Langfuse host URL (e.g., https://cloud.langfuse.com)
+    Default: http://localhost:3000
+  
+  # AWS Bedrock Configuration
+  BedrockRegion:
+    Type: String
+    Description: AWS region for Bedrock
+    Default: us-east-1
+    AllowedValues:
+      - us-east-1
+      - us-west-2
+      - eu-central-1
+      - ap-northeast-1
+      - ap-southeast-1
+      - ap-southeast-2
+  
+  BedrockModelId:
+    Type: String
+    Description: Bedrock model ID to use
+    Default: us.anthropic.claude-3-5-sonnet-20241022-v2:0
+  
+  # S3 Bucket for artifacts (provided by deployment script)
+  ArtifactsBucket:
+    Type: String
+    Description: S3 bucket containing Lambda deployment artifacts
+
+Resources:
+  # IAM Role for Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource: '*'
+
+  # Base Dependencies Layer
+  BaseDependenciesLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: strands-langfuse-base-deps
+      Description: Base dependencies (boto3, langfuse, OpenTelemetry) - ~30MB
+      Content:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: layers/base-deps-layer.zip
+      CompatibleRuntimes:
+        - python3.12
+      CompatibleArchitectures:
+        - x86_64
+
+  # Strands Agent Layer
+  StrandsAgentLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: strands-langfuse-agent-layer
+      Description: Strands agents with OTEL support - ~25MB
+      Content:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: layers/strands-layer.zip
+      CompatibleRuntimes:
+        - python3.12
+      CompatibleArchitectures:
+        - x86_64
+
+  # Lambda Function
+  StrandsLangfuseFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: strands-langfuse-demo
+      Description: 'Demo Lambda showcasing Strands agents with Langfuse observability'
+      Runtime: python3.12
+      Handler: lambda_handler.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: layers/function-code.zip
+      Layers:
+        - !Ref BaseDependenciesLayer
+        - !Ref StrandsAgentLayer
+      MemorySize: 1024
+      Timeout: 300
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          LANGFUSE_PUBLIC_KEY: !Ref LangfusePublicKey
+          LANGFUSE_SECRET_KEY: !Ref LangfuseSecretKey
+          LANGFUSE_HOST: !Ref LangfuseHost
+          BEDROCK_REGION: !Ref BedrockRegion
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: all
+      Tags:
+        - Key: Project
+          Value: strands-langfuse-demo
+        - Key: Purpose
+          Value: demo
+
+  # Function URL
+  FunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref StrandsLangfuseFunction
+      AuthType: NONE
+      Cors:
+        AllowOrigins:
+          - '*'
+        AllowMethods:
+          - '*'
+        AllowHeaders:
+          - '*'
+
+  # Permission for Function URL
+  FunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref StrandsLangfuseFunction
+      Principal: '*'
+      Action: lambda:InvokeFunctionUrl
+      FunctionUrlAuthType: NONE
+
+Outputs:
+  FunctionUrl:
+    Description: Lambda Function URL - Use this to invoke the demo
+    Value: !GetAtt FunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub '${AWS::StackName}-FunctionUrl'
+  
+  FunctionArn:
+    Description: Lambda Function ARN
+    Value: !GetAtt StrandsLangfuseFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-FunctionArn'
+  
+  CurlExampleCustom:
+    Description: Example curl command for custom queries
+    Value: !Sub |
+      curl -X POST ${FunctionUrl.FunctionUrl} \
+        -H "Content-Type: application/json" \
+        -d '{"demo": "custom", "query": "What is AWS Lambda?"}'
+  
+  CurlExampleMontyPython:
+    Description: Example curl command for Monty Python demo
+    Value: !Sub |
+      curl -X POST ${FunctionUrl.FunctionUrl} \
+        -H "Content-Type: application/json" \
+        -d '{"demo": "monty_python"}'

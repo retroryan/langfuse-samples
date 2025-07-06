@@ -1,67 +1,74 @@
 """
-Simple Lambda handler for Strands + Langfuse demo
+Lambda handler for Strands + Langfuse demos
+Supports demo selection via JSON field
 """
 import os
 import json
-import base64
 import uuid
 from datetime import datetime
 
-# Configure Langfuse OTEL export - MUST be done BEFORE importing Strands
-langfuse_pk = os.environ.get('LANGFUSE_PUBLIC_KEY')
-langfuse_sk = os.environ.get('LANGFUSE_SECRET_KEY')
-langfuse_host = os.environ.get('LANGFUSE_HOST')
+# Initialize OTEL before any other imports
+from core.setup import initialize_langfuse_telemetry, setup_telemetry
+langfuse_pk, langfuse_sk, langfuse_host = initialize_langfuse_telemetry()
+telemetry = setup_telemetry("lambda-strands-agents")
 
-# Create auth token for OTEL authentication
-auth_token = base64.b64encode(f"{langfuse_pk}:{langfuse_sk}".encode()).decode()
-
-# Set OTEL environment variables BEFORE importing Strands
-os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"{langfuse_host}/api/public/otel/v1/traces"
-os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = f"Authorization=Basic {auth_token}"
-os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = "http/protobuf"
-os.environ["OTEL_SERVICE_NAME"] = "Lambda Strands Agents"
-
-# NOW import Strands after setting environment variables
-from strands import Agent
-from strands.models.bedrock import BedrockModel
-from strands.telemetry import StrandsTelemetry
-
-# Initialize telemetry
-telemetry = StrandsTelemetry()
-telemetry.setup_otlp_exporter()
+from core.agent_factory import create_agent, create_bedrock_model
+from demos import scoring, examples, monty_python
 
 def handler(event, context):
-    """Lambda handler function"""
+    """Lambda handler with demo selection support"""
     try:
+        body = json.loads(event.get('body', '{}')) if isinstance(event.get('body'), str) else event
+        
+        # Demo selection
+        demo_name = body.get('demo', 'custom')
+        query = body.get('query', 'What is the capital of France?')
+        
         # Generate unique run ID
         run_id = str(uuid.uuid4())[:8]
         timestamp = datetime.now().isoformat()
         
-        # Extract query from event
-        body = json.loads(event.get('body', '{}')) if isinstance(event.get('body'), str) else event
-        query = body.get('query', 'What is the capital of France?')
-        
-        # Create agent
-        model = BedrockModel(
-            model_id=os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-3-5-sonnet-20241022-v2:0"),
-            region=os.environ.get("BEDROCK_REGION", "us-east-1")
-        )
-        
-        agent = Agent(
-            model=model,
-            system_prompt="You are a helpful assistant. Be concise in your responses.",
-            trace_attributes={
-                "session.id": f"lambda-demo-{run_id}",
-                "user.id": "lambda-user",
-                "langfuse.tags": ["lambda-demo", f"run-{run_id}"],
-                "langfuse.name": "Lambda Strands Agents"
+        if demo_name == 'scoring':
+            session_id, trace_ids = scoring.run_demo(f"lambda-scoring-{run_id}")
+            result = {
+                'demo': 'scoring',
+                'test_results': len(trace_ids),
+                'session_id': session_id
             }
-        )
+        elif demo_name == 'monty_python':
+            session_id, trace_ids = monty_python.run_demo(f"lambda-monty-{run_id}")
+            result = {
+                'demo': 'monty_python',
+                'interactions': len(trace_ids),
+                'session_id': session_id
+            }
+        elif demo_name == 'examples':
+            session_id, trace_ids = examples.run_demo(f"lambda-examples-{run_id}")
+            result = {
+                'demo': 'examples',
+                'examples_run': len(trace_ids),
+                'session_id': session_id
+            }
+        else:
+            # Custom query mode (existing behavior)
+            agent = create_agent(
+                system_prompt="You are a helpful assistant. Be concise in your responses.",
+                session_id=f"lambda-custom-{run_id}",
+                user_id="lambda-user",
+                tags=["lambda-demo", "custom", f"run-{run_id}"]
+            )
+            response = agent(query)
+            result = {
+                'demo': 'custom',
+                'query': query,
+                'response': str(response),
+                'metrics': {
+                    'tokens': response.metrics.accumulated_usage['totalTokens'],
+                    'latency_ms': response.metrics.accumulated_metrics['latencyMs']
+                }
+            }
         
-        # Get response
-        response = agent(query)
-        
-        # Force flush telemetry before Lambda terminates
+        # Force flush telemetry
         if hasattr(telemetry, 'tracer_provider') and hasattr(telemetry.tracer_provider, 'force_flush'):
             telemetry.tracer_provider.force_flush()
         
@@ -75,14 +82,14 @@ def handler(event, context):
                 'success': True,
                 'run_id': run_id,
                 'timestamp': timestamp,
-                'query': query,
-                'response': str(response),
                 'langfuse_url': langfuse_host,
-                'trace_filter': f"run-{run_id}"
+                'trace_filter': f"run-{run_id}",
+                **result
             })
         }
         
     except Exception as e:
+        print(f"Error in Lambda handler: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {
@@ -91,6 +98,7 @@ def handler(event, context):
             },
             'body': json.dumps({
                 'success': False,
-                'error': str(e)
+                'error': str(e),
+                'error_type': type(e).__name__
             })
         }

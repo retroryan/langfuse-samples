@@ -1,0 +1,93 @@
+{
+  "// Example 1": "Filter by single tag (basic)",
+  "example1_single_tag": {
+    "Tags": {
+      "Key": "Project",
+      "Values": ["Langfuse"]
+    }
+  },
+
+  "// Example 2": "Filter by multiple tags (AND condition)",
+  "example2_multiple_tags": {
+    "And": [
+      {
+        "Tags": {
+          "Key": "Project",
+          "Values": ["Langfuse"]
+        }
+      },
+      {
+        "Tags": {
+          "Key": "Environment",
+          "Values": ["production"]
+        }
+      }
+    ]
+  },
+
+  "// Example 3": "Filter by service and tags",
+  "example3_service_and_tags": {
+    "And": [
+      {
+        "Tags": {
+          "Key": "Project",
+          "Values": ["Langfuse"]
+        }
+      },
+      {
+        "Dimensions": {
+          "Key": "SERVICE",
+          "Values": [
+            "Amazon Elastic Container Service",
+            "Amazon Relational Database Service",
+            "Amazon Simple Storage Service",
+            "Amazon Elastic Load Balancing",
+            "Amazon Elastic Compute Cloud - Compute",
+            "Amazon CloudWatch",
+            "AWS Secrets Manager"
+          ]
+        }
+      }
+    ]
+  },
+
+  "// Example 4": "Filter by stack name pattern",
+  "example4_stack_name": {
+    "Tags": {
+      "Key": "aws:cloudformation:stack-name",
+      "Values": ["Langfuse*"]
+    }
+  },
+
+  "// Example 5": "Complex filter with multiple conditions",
+  "example5_complex": {
+    "And": [
+      {
+        "Or": [
+          {
+            "Tags": {
+              "Key": "Project",
+              "Values": ["Langfuse"]
+            }
+          },
+          {
+            "Tags": {
+              "Key": "Service",
+              "Values": ["Langfuse-Observability"]
+            }
+          }
+        ]
+      },
+      {
+        "Not": {
+          "Dimensions": {
+            "Key": "RECORD_TYPE",
+            "Values": ["Credit", "Refund"]
+          }
+        }
+      }
+    ]
+  },
+
+  "// Note": "To use any of these examples, copy the desired filter object (without the example name) to cost-filter.json"
+}

@@ -8,6 +8,7 @@ scoring_results_*.json
 
 # AWS CDK
 cdk.out/
+.cdk.staging/
 cdk.context.json
 outputs.json
 synth.lock
@@ -26,6 +27,9 @@ package/
 strands-langfuse/lambda/build/
 strands-langfuse/lambda/package/
 *.zip
+
+# Lambda testing
+strands-langfuse/lambda/docker-test/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -234,3 +238,9 @@ $RECYCLE.BIN/
 .sass-cache/
 *.css.map
 *.js.map
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.old
