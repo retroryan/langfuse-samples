@@ -20,6 +20,7 @@ def build_deployment_package(use_docker=False):
     
     # Set up paths
     lambda_dir = Path(__file__).parent
+    project_root = lambda_dir.parent  # strands-langfuse directory
     build_dir = lambda_dir / "build"
     package_dir = build_dir / "package"
     
@@ -42,7 +43,7 @@ def build_deployment_package(use_docker=False):
             "--entrypoint", "/bin/bash",
             "public.ecr.aws/lambda/python:3.12",
             "-c",
-            "pip install -r /var/task/requirements.txt -t /var/task/package --upgrade && cp /var/task/lambda_handler.py /var/task/package/"
+            "pip install -r /var/task/requirements.txt -t /var/task/package --upgrade && cp -r /var/task/../lambda_handler.py /var/task/../core /var/task/../demos /var/task/package/"
         ]
         
         try:
@@ -63,9 +64,11 @@ def build_deployment_package(use_docker=False):
             "--upgrade"
         ], check=True)
         
-        # Copy Lambda handler
-        print("📄 Copying Lambda handler...")
-        shutil.copy2(lambda_dir / "lambda_handler.py", package_dir)
+        # Copy Lambda handler and required modules
+        print("📄 Copying Lambda handler and modules...")
+        shutil.copy2(project_root / "lambda_handler.py", package_dir)
+        shutil.copytree(project_root / "core", package_dir / "core")
+        shutil.copytree(project_root / "demos", package_dir / "demos")
         
         if sys.platform != "linux":
             print("⚠️  Warning: Building on non-Linux platform. Consider using --docker for production deployments.")
