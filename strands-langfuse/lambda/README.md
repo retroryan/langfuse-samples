@@ -8,6 +8,7 @@ AWS Lambda deployment of the Strands-Langfuse integration that demonstrates Open
 
 This Lambda function:
 - Accepts natural language queries via HTTP POST
+- Supports multiple demo modes: custom queries, scoring tests, examples, and Monty Python demos
 - Uses AWS Bedrock (Claude 3.5 Sonnet) to generate responses
 - Automatically sends OpenTelemetry traces to Langfuse
 - Returns responses with trace IDs for debugging
@@ -55,28 +56,58 @@ This Lambda function:
 Once deployed, test with curl:
 
 ```bash
-# Basic test
+# Basic custom query
 curl -X POST https://your-function-url.lambda-url.us-east-1.on.aws/ \
   -H "Content-Type: application/json" \
   -d '{"query": "What is the capital of France?"}'
 
-# Test with complex query
+# Run scoring demo
 curl -X POST https://your-function-url.lambda-url.us-east-1.on.aws/ \
   -H "Content-Type: application/json" \
-  -d '{"query": "Explain the theory of relativity in simple terms"}'
+  -d '{"demo": "scoring"}'
+
+# Run Monty Python demo
+curl -X POST https://your-function-url.lambda-url.us-east-1.on.aws/ \
+  -H "Content-Type: application/json" \
+  -d '{"demo": "monty_python"}'
+
+# Run examples demo
+curl -X POST https://your-function-url.lambda-url.us-east-1.on.aws/ \
+  -H "Content-Type: application/json" \
+  -d '{"demo": "examples"}'
 ```
 
 ### Response Format
 
+**Custom Query Response:**
 ```json
 {
   "success": true,
   "run_id": "abc12345",
   "timestamp": "2025-01-05T12:00:00Z",
+  "demo": "custom",
   "query": "What is the capital of France?",
   "response": "Paris is the capital of France.",
+  "metrics": {
+    "tokens": 45,
+    "latency_ms": 1250
+  },
   "langfuse_url": "http://your-langfuse-host",
   "trace_filter": "run-abc12345"
+}
+```
+
+**Demo Response (e.g., scoring):**
+```json
+{
+  "success": true,
+  "run_id": "def67890",
+  "timestamp": "2025-01-05T12:01:00Z",
+  "demo": "scoring",
+  "test_results": 12,
+  "session_id": "lambda-scoring-def67890",
+  "langfuse_url": "http://your-langfuse-host",
+  "trace_filter": "run-def67890"
 }
 ```
 
@@ -90,10 +121,10 @@ python test_lambda.py
 ```
 
 This script will:
-- Send multiple test queries to your Lambda
+- Send multiple test queries to your Lambda (custom queries and demo modes)
 - Wait for traces to appear in Langfuse
 - Validate trace content and structure
-- Display results and metrics
+- Display results and metrics for both custom queries and demos
 
 ## Troubleshooting
 
@@ -132,17 +163,20 @@ cdk destroy
 
 ### Key Files
 
-- `lambda_handler.py` - Main Lambda handler with Strands agent
+- `../lambda_handler.py` - Main Lambda handler with demo selection support (in parent directory)
+- `../core/` - Shared core modules for OTEL setup and agent creation
+- `../demos/` - Demo modules (scoring, examples, monty_python)
 - `requirements.txt` - Dependencies (strands-agents, langfuse, boto3)
-- `build_lambda.py` - Package builder for Lambda deployment
+- `build_lambda.py` - Package builder that includes handler and modules
 - `cdk/stack.py` - CDK infrastructure definition
 
 ### How It Works
 
 1. **OTEL Configuration**: Set before importing Strands to ensure proper initialization
-2. **Strands Agent**: Simple agent that answers questions using Bedrock
-3. **Trace Attributes**: Each request tagged with unique run_id for filtering
-4. **Error Handling**: Graceful error responses with details
+2. **Demo Selection**: JSON field `demo` determines which mode to run (custom, scoring, monty_python, examples)
+3. **Strands Agent**: Creates agents using shared factory functions with appropriate prompts
+4. **Trace Attributes**: Each request tagged with unique run_id and session_id for filtering
+5. **Error Handling**: Graceful error responses with details
 
 ### Security Notes
 

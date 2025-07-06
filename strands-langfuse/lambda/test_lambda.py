@@ -26,22 +26,45 @@ TEST_QUERIES = [
     {
         "name": "Basic Math",
         "query": "What is 2 + 2?",
+        "demo": "custom",
         "expected_keywords": ["4", "four"]
     },
     {
         "name": "Capital Question",
         "query": "What is the capital of France?",
+        "demo": "custom",
         "expected_keywords": ["Paris"]
     },
     {
         "name": "Complex Question",
         "query": "Explain photosynthesis in simple terms",
+        "demo": "custom",
         "expected_keywords": ["plants", "sunlight", "energy"]
     },
     {
         "name": "Programming Question",
         "query": "What is a Python decorator?",
+        "demo": "custom",
         "expected_keywords": ["function", "wrapper", "@"]
+    }
+]
+
+# Demo tests
+DEMO_TESTS = [
+    {
+        "name": "Scoring Demo",
+        "demo": "scoring",
+        "expected_response": {"demo": "scoring", "test_results": int}
+    },
+    {
+        "name": "Monty Python Demo", 
+        "demo": "monty_python",
+        "expected_response": {"demo": "monty_python", "interactions": int}
+    },
+    {
+        "name": "Examples Demo",
+        "demo": "examples",
+        "expected_response": {"demo": "examples", "examples_run": int}
     }
 ]
 
@@ -56,14 +79,15 @@ def get_lambda_url() -> Optional[str]:
         info = json.load(f)
         return info.get("function_url")
 
-def test_lambda_query(function_url: str, query: str) -> Dict:
+def test_lambda_query(function_url: str, query: str, demo: str = "custom") -> Dict:
     """Test a single query against the Lambda"""
-    print(f"\n📤 Sending query: {query}")
+    print(f"\n📤 Sending query: {query} (demo: {demo})")
     
     try:
+        payload = {"query": query} if demo == "custom" else {"demo": demo}
         response = requests.post(
             function_url,
-            json={"query": query},
+            json=payload,
             headers={"Content-Type": "application/json"},
             timeout=30
         )
@@ -178,24 +202,44 @@ def check_langfuse_trace(run_id: str, retries: int = 10, delay: int = 2) -> bool
     return False
 
 def validate_response(response: Dict, test_case: Dict) -> bool:
-    """Validate response contains expected keywords"""
+    """Validate response contains expected keywords or structure"""
     if not response:
         return False
     
-    response_text = response.get("response", "").lower()
-    expected_keywords = test_case.get("expected_keywords", [])
+    # For custom queries, check keywords
+    if test_case.get("demo") == "custom":
+        response_text = response.get("response", "").lower()
+        expected_keywords = test_case.get("expected_keywords", [])
+        
+        found_keywords = []
+        for keyword in expected_keywords:
+            if keyword.lower() in response_text:
+                found_keywords.append(keyword)
+        
+        if found_keywords:
+            print(f"✅ Found expected keywords: {', '.join(found_keywords)}")
+            return True
+        else:
+            print(f"⚠️  Expected keywords not found: {', '.join(expected_keywords)}")
+            return False
     
-    found_keywords = []
-    for keyword in expected_keywords:
-        if keyword.lower() in response_text:
-            found_keywords.append(keyword)
-    
-    if found_keywords:
-        print(f"✅ Found expected keywords: {', '.join(found_keywords)}")
+    # For demo tests, check response structure
+    expected_response = test_case.get("expected_response", {})
+    if expected_response:
+        for key, expected_type in expected_response.items():
+            if key not in response:
+                print(f"⚠️  Missing expected field: {key}")
+                return False
+            if expected_type != int and response[key] != expected_type:
+                print(f"⚠️  Field {key} has unexpected value: {response[key]} (expected {expected_type})")
+                return False
+            if expected_type == int and not isinstance(response[key], int):
+                print(f"⚠️  Field {key} is not an integer: {response[key]}")
+                return False
+        print(f"✅ Response structure matches expected format")
         return True
-    else:
-        print(f"⚠️  Expected keywords not found: {', '.join(expected_keywords)}")
-        return False
+    
+    return True
 
 def main():
     """Main test function"""
@@ -218,12 +262,13 @@ def main():
     # Run test queries
     print("\n🚀 Running test queries...")
     
+    # Run custom query tests
     for test_case in TEST_QUERIES:
         print(f"\n{'='*60}")
         print(f"📝 Test: {test_case['name']}")
         
         # Send query
-        response = test_lambda_query(function_url, test_case["query"])
+        response = test_lambda_query(function_url, test_case["query"], test_case.get("demo", "custom"))
         
         if response:
             # Validate response
@@ -241,6 +286,42 @@ def main():
                 trace_results.append({
                     "test": test_case["name"],
                     "run_id": run_id,
+                    "trace_found": trace_found
+                })
+        else:
+            results.append({
+                "test": test_case["name"],
+                "success": False,
+                "run_id": None
+            })
+    
+    # Run demo tests
+    print("\n\n🎭 Running demo tests...")
+    for test_case in DEMO_TESTS:
+        print(f"\n{'='*60}")
+        print(f"📝 Test: {test_case['name']}")
+        
+        # Send demo request
+        response = test_lambda_query(function_url, "", test_case["demo"])
+        
+        if response:
+            # Validate response
+            response_valid = validate_response(response, test_case)
+            results.append({
+                "test": test_case["name"],
+                "success": response_valid,
+                "run_id": response.get("run_id"),
+                "session_id": response.get("session_id")
+            })
+            
+            # Check trace in Langfuse
+            session_id = response.get("session_id")
+            if session_id:
+                # For demos, check by session ID instead of run ID
+                trace_found = check_langfuse_trace(session_id.split('-')[-1])
+                trace_results.append({
+                    "test": test_case["name"],
+                    "session_id": session_id,
                     "trace_found": trace_found
                 })
         else:
