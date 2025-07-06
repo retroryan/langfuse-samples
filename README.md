@@ -2,6 +2,20 @@
 
 This repository contains example integrations demonstrating how to use Langfuse observability with various LLM frameworks.
 
+## Python Setup
+
+Install pyenv to manage Python versions:
+
+```bash
+# macOS (using Homebrew)
+brew install pyenv
+
+# Ubuntu/Debian
+curl https://pyenv.run | bash
+```
+
+Each project in this repository uses pyenv for Python version management and venv for package isolation. Navigate to the project directory and follow the setup instructions in each project's README.
+
 ## Getting Started with Langfuse
 
 First, you'll need a Langfuse instance running:
@@ -36,7 +50,7 @@ Integration with AWS Strands agents and Bedrock models showcasing:
 - **Custom attributes** - User IDs, tags, and metadata in traces
 - **Automated scoring** - Response evaluation with multiple scoring methods
 
-The demos include both basic examples and comprehensive scoring demonstrations that automatically evaluate LLM responses against expected answers.
+Run demos locally with Python or deploy as a Lambda function URL with the Langfuse AWS deployment.
 
 ### [ollama-langfuse](ollama-langfuse/)
 Integration with local Ollama models demonstrating:
@@ -49,19 +63,3 @@ Run the basic demo to see simple question-answering traced in Langfuse, or try t
 
 ### [langfuse-aws](langfuse-aws/)
 Infrastructure as code for deploying Langfuse on AWS (deployment scripts, not demos).
-
-## Running Examples
-
-Each demo directory contains:
-- Python example scripts (basic and themed demos)
-- `run_and_validate.py` - Runs examples and verifies trace creation
-- `run_scoring_and_validate.py` - Runs scoring demos with validation
-- `view_traces.py` - Views recent traces via Langfuse API
-- `.env` file with required configuration
-
-## Prerequisites
-
-- Langfuse instance (local or cloud)
-- Python environment with dependencies from `requirements.txt`
-- For Ollama examples: Local Ollama service running on port 11434
-- For AWS examples: Valid AWS credentials and Bedrock access

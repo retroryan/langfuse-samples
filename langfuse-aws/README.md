@@ -12,17 +12,29 @@ Compared to the main branch, this version includes:
 - **Automated deployment scripts** for faster setup
 - **Estimated cost**: ~$75-100/month (vs ~$150-200/month)
 
-## Setup
+## Prerequisites
 
-Ensure Python 3.12.10 is set:
+- **Python 3.12.10** (required for CDK compatibility)
+- **AWS CLI** configured with appropriate credentials
+- **AWS CDK** (installed automatically with dependencies)
+
+## Python Setup
+
 ```bash
+# Set Python version for this project
 pyenv local 3.12.10
-```
 
-Install dependencies:
-```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
+
+> **Note on Windows Support**: This deployment solution is designed for macOS/Linux environments. Windows support is not currently available, but PRs are very welcome!
 
 ## Deploy
 
@@ -41,6 +53,10 @@ python cost-monitor.py --weekly  # Past week's costs
 ## Clean Up
 
 ```bash
+# Run the cleanup script to destroy all resources and clean local files
+python cleanup.py
+
+# Or manually destroy CDK stacks
 cdk destroy --force --all
 ```
 

@@ -19,6 +19,9 @@ import time
 # Load environment variables
 load_dotenv()
 
+# Get model from environment or use default
+model = os.getenv('OLLAMA_MODEL', 'llama3.1:8b')
+
 def print_scene_header():
     """Print the opening scene"""
     print("\n" + "="*70)
@@ -59,6 +62,7 @@ def main(session_id=None):
     )
     
     print_scene_header()
+    print(f"\n📦 Using model: {model}")
     
     if session_id:
         print(f"\n📍 Session ID: {session_id}")
@@ -69,7 +73,7 @@ def main(session_id=None):
     
     response1 = client.chat.completions.create(
         name="ollama-traces",
-        model="llama3.1:8b",
+        model=model,
         messages=[
             {"role": "system", "content": "You are a medieval scholar well-versed in ornithology and Monty Python references. Be helpful but also acknowledge the humor in the questions."},
             {"role": "user", "content": "What is the airspeed velocity of an unladen swallow?"}
@@ -90,7 +94,7 @@ def main(session_id=None):
     
     response2 = client.chat.completions.create(
         name="ollama-traces",
-        model="llama3.1:8b",
+        model=model,
         messages=[
             {"role": "system", "content": "You are a medieval scholar well-versed in ornithology and Monty Python references. Be helpful but also acknowledge the humor in the questions."},
             {"role": "user", "content": "What is the airspeed velocity of an unladen swallow?"},
@@ -112,7 +116,7 @@ def main(session_id=None):
     
     response3 = client.chat.completions.create(
         name="ollama-traces",
-        model="llama3.1:8b",
+        model=model,
         messages=[
             {"role": "system", "content": "You are King Arthur's AI assistant. Answer as if you were helping King Arthur cross the Bridge of Death."},
             {"role": "user", "content": "What is your favorite color?"}
@@ -133,7 +137,7 @@ def main(session_id=None):
     
     response4 = client.chat.completions.create(
         name="ollama-traces",
-        model="llama3.1:8b",
+        model=model,
         messages=[
             {"role": "system", "content": "You are a wise sage who knows about medieval quests and Monty Python humor."},
             {"role": "user", "content": "What is the secret to finding the Holy Grail?"}
@@ -155,7 +159,7 @@ def main(session_id=None):
     
     response5 = client.chat.completions.create(
         name="ollama-traces",
-        model="llama3.1:8b",
+        model=model,
         messages=[
             {"role": "system", "content": "You are a Python (the programming language) assistant who also loves Monty Python. Make programming jokes related to the Spanish Inquisition sketch."},
             {"role": "user", "content": "What are the chief weapons of a Python developer?"}

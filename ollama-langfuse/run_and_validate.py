@@ -20,6 +20,9 @@ import uuid
 # Load environment variables
 load_dotenv()
 
+# Get model from environment or use default
+model = os.getenv('OLLAMA_MODEL', 'llama3.1:8b')
+
 def get_auth_header():
     """Create Basic Auth header for Langfuse API"""
     public_key = os.getenv('LANGFUSE_PUBLIC_KEY')
@@ -209,12 +212,13 @@ def main():
             models = response.json().get('models', [])
             print(f"✅ Ollama is running with {len(models)} models")
             
-            # Check if llama3.1 is available
+            # Check if configured model is available
             model_names = [m.get('name', '') for m in models]
-            if any('llama3.1' in name for name in model_names):
-                print("✅ llama3.1 model is available")
+            if any(model in name for name in model_names):
+                print(f"✅ {model} model is available")
             else:
-                print("⚠️  llama3.1 model not found. Please run: ollama pull llama3.1")
+                print(f"⚠️  {model} model not found. Please run: ollama pull {model}")
+                print(f"   Available models: {', '.join(model_names)}")
                 return
         else:
             print("❌ Ollama is not responding. Please start Ollama first.")
