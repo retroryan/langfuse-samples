@@ -49,8 +49,6 @@ python run_scoring_and_validate.py
 python view_traces.py
 
 # Debug utilities (root level)
-python debug_scores_api.py        # Debug score API endpoints
-python debug_scores_detailed.py   # Detailed score debugging
 python delete_metrics.py          # Clean up test metrics
 ```
 
