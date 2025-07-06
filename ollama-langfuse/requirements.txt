@@ -1,4 +1,4 @@
-langfuse>=2.53.3
+langfuse>=3.0.0
 openai>=1.0.0
 python-dotenv
 requests

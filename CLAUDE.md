@@ -12,6 +12,14 @@ This repository contains sample integrations demonstrating how to use Langfuse o
 
 ## Common Development Commands
 
+### Python Setup
+
+All projects require Python 3.12.10 managed via pyenv:
+```bash
+# Set Python version (required for all projects)
+pyenv local 3.12.10
+```
+
 ### Python Examples (ollama-langfuse, strands-langfuse)
 
 ```bash
@@ -28,6 +36,7 @@ python [framework]_monty_python_demo.py
 
 # Run scoring demos (automated response evaluation)
 python [framework]_scoring_demo.py
+python [framework]_scoring_demo_advanced.py  # ollama only
 
 # Run with validation (checks traces were created)
 python run_and_validate.py        # Runs Monty Python demo by default
@@ -48,9 +57,6 @@ python delete_metrics.py          # Clean up test metrics
 ### AWS Deployment (langfuse-aws)
 
 ```bash
-# Set required Python version
-pyenv local 3.12.10
-
 # Install CDK dependencies
 cd langfuse-aws
 pip install -r requirements.txt
@@ -147,6 +153,18 @@ The scoring demos use a pattern of intentional wrong answers to validate the sco
 - Tests ending in "_correct" should pass (score ≥ 0.8)
 - Tests ending in "_wrong" should fail (score < 0.8)
 
+## Running Local Langfuse
+
+For development, start Langfuse locally:
+```bash
+# Clone and start Langfuse with Docker
+git clone https://github.com/langfuse/langfuse
+cd langfuse
+docker-compose up
+```
+
+Access at http://localhost:3000 with default credentials displayed in console.
+
 ## Important Notes
 
 - All examples expect Langfuse to be running (locally via Docker or cloud)
@@ -154,4 +172,5 @@ The scoring demos use a pattern of intentional wrong answers to validate the sco
 - AWS examples require valid Bedrock access in the configured region
 - Token usage and latency metrics are automatically captured in traces
 - The repository uses direct Python script execution without a formal build system
+- No linting configuration exists - follow existing code style when contributing
 - For production Langfuse deployments, refer to the official AWS guide at https://github.com/aws-samples/deploy-langfuse-on-ecs-with-fargate/

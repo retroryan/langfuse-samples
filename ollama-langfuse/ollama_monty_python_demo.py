@@ -13,6 +13,9 @@ Prerequisites:
 import os
 import sys
 from dotenv import load_dotenv
+# The magic of Langfuse: Import their OpenAI wrapper instead of the standard OpenAI
+# This wrapper intercepts all API calls and automatically creates traces
+# Your code stays exactly the same - just change the import!
 from langfuse.openai import OpenAI
 import time
 
@@ -56,9 +59,14 @@ def print_metrics(response):
 
 def main(session_id=None):
     # Initialize the Langfuse OpenAI client
+    # This is where the magic happens:
+    # 1. We're using Langfuse's OpenAI class (not the standard one)
+    # 2. It behaves identically to the regular OpenAI client
+    # 3. But it automatically traces every API call we make
+    # 4. No need to manually create spans, traces, or events!
     client = OpenAI(
-        base_url='http://localhost:11434/v1',
-        api_key='ollama',  # required but unused
+        base_url='http://localhost:11434/v1',  # Ollama's OpenAI-compatible endpoint
+        api_key='ollama',  # Required but unused by Ollama
     )
     
     print_scene_header()
@@ -71,8 +79,21 @@ def main(session_id=None):
     # Question 1: The Airspeed Velocity
     print_question_header(1, "What is the airspeed velocity of an unladen swallow?")
     
+    # Behind the scenes when we call create():
+    # 1. Langfuse intercepts the call and starts a timer
+    # 2. The request is forwarded to Ollama
+    # 3. When Ollama responds, Langfuse captures:
+    #    - Input/output messages
+    #    - Token counts (if provided by the model)
+    #    - Latency (request duration)
+    #    - Any errors that occur
+    # 4. A trace is created with all this data
+    # 5. The metadata fields with 'langfuse_' prefix have special meaning:
+    #    - langfuse_session_id: Groups related traces together
+    #    - langfuse_user_id: Identifies the user
+    #    - langfuse_tags: Tags for filtering/searching
     response1 = client.chat.completions.create(
-        name="ollama-traces",
+        name="ollama-traces",  # This becomes the trace name
         model=model,
         messages=[
             {"role": "system", "content": "You are a medieval scholar well-versed in ornithology and Monty Python references. Be helpful but also acknowledge the humor in the questions."},
@@ -191,6 +212,14 @@ def main(session_id=None):
     print("   - Token usage and latency metrics")
     if session_id:
         print(f"\n📍 Filter by session ID: {session_id}")
+    
+    # Ensure all events are sent before exiting (v3 best practice)
+    # Langfuse uses an async background thread to send traces
+    # This is efficient but means traces might not be sent immediately
+    # flush() forces all pending traces to be sent before the script exits
+    from langfuse import get_client
+    langfuse = get_client()  # Gets the singleton Langfuse client instance
+    langfuse.flush()  # Blocks until all traces are sent
 
 if __name__ == "__main__":
     # Check if session ID was passed as command line argument

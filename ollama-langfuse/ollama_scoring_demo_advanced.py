@@ -1,24 +1,42 @@
 """
-Strands Agents + Langfuse Scoring Demo
+Ollama + Langfuse Scoring Demo
 
-This demo showcases how to automatically score AWS Strands agents responses using 
-Langfuse's scoring capabilities. It tests various scenarios where agents should give
+This demo showcases how to automatically score LLM responses using Langfuse's
+scoring capabilities. It tests various scenarios where models should give
 correct or incorrect answers, then scores their responses programmatically.
+
+Prerequisites:
+1. Ollama must be installed and running locally
+2. Pull the Llama 3.1 model: ollama pull llama3.1:8b
+3. Langfuse must be running (locally via Docker or cloud)
+4. Configure .env with LANGFUSE_* credentials
+
+Features:
+- Automatic response evaluation using different scoring methods
+- Multiple score types (numeric and categorical)
+- Detailed reasoning for each score
+- Session tracking for grouped analysis
+- Results saved to JSON for further analysis
 """
+
+import os
 import sys
 import json
 import time
-import hashlib
 from datetime import datetime
-from typing import Dict, Any, List, Tuple, Optional
+from dotenv import load_dotenv
+from langfuse.openai import OpenAI
+from langfuse import Langfuse, get_client
+from typing import Dict, Any, List
 
-# Initialize OTEL before importing Agent
-from core.setup import initialize_langfuse_telemetry, setup_telemetry, get_langfuse_client
-from core.agent_factory import create_agent
-from core.metrics_formatter import format_dashboard_metrics
+# Load environment variables
+load_dotenv()
 
-# Initialize Langfuse OTEL
-langfuse_pk, langfuse_sk, langfuse_host = initialize_langfuse_telemetry()
+# Get model from environment or use default
+model = os.getenv('OLLAMA_MODEL', 'llama3.1:8b')
+
+# Initialize Langfuse client for scoring
+langfuse_client = Langfuse()
 
 # Test cases with expected behaviors
 TEST_CASES = [
@@ -87,6 +105,7 @@ def extract_number_from_response(response: str) -> str:
     """Extract number from a response string"""
     import re
     # Look for numbers in the response
+    # Match isolated numbers or numbers followed by punctuation
     numbers = re.findall(r'\b(-?\d+\.?\d*)\b(?:[.,!?\s]|$)', response)
     # Return the last number found (usually the answer)
     return numbers[-1] if numbers else ""
@@ -180,95 +199,34 @@ def evaluate_response(response: str, test_case: Dict[str, Any]) -> Dict[str, Any
         return {"score": 0.5, "reasoning": f"Unknown scoring method: {method}"}
 
 
-def find_trace_for_test(session_id: str, test_case_name: str, max_retries: int = 5):
-    """Find the trace for a specific test case using Langfuse API"""
-    # Wait for trace to be processed
-    time.sleep(3)
+def generate_trace_id(session_id: str, test_case_name: str) -> str:
+    """Generate a deterministic trace ID using Langfuse v3 API
     
-    for retry in range(max_retries):
-        try:
-            # Use the API directly via requests
-            import requests
-            from base64 import b64encode
-            
-            # Create auth header
-            auth = b64encode(f"{langfuse_pk}:{langfuse_sk}".encode()).decode()
-            headers = {"Authorization": f"Basic {auth}"}
-            
-            # Query traces with tags
-            url = f"{langfuse_host}/api/public/traces"
-            params = {
-                "tags": ["strands-scoring", test_case_name],
-                "limit": 50,
-                "orderBy": "timestamp.desc"
-            }
-            
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            
-            traces = response.json().get("data", [])
-            
-            # Look for our specific trace
-            for trace in traces:
-                # Check tags in the trace
-                trace_tags = trace.get("tags", [])
-                # Also check metadata.attributes.langfuse.tags
-                metadata = trace.get("metadata", {})
-                attributes = metadata.get("attributes", {})
-                attr_tags = attributes.get("langfuse.tags", [])
-                
-                # Parse attr_tags if it's a JSON string
-                if isinstance(attr_tags, str):
-                    try:
-                        attr_tags = json.loads(attr_tags)
-                    except:
-                        attr_tags = []
-                
-                # Check if this trace matches our test case
-                all_tags = trace_tags + attr_tags
-                if test_case_name in all_tags:
-                    return trace.get("id")
-                
-                # Also check session ID
-                if attributes.get("session.id") == session_id and attributes.get("test.name") == test_case_name:
-                    return trace.get("id")
-            
-            # If not found, wait and retry
-            if retry < max_retries - 1:
-                print(f"   ⏳ Trace not found yet, retrying in 2s...")
-                time.sleep(2)
-                
-        except Exception as e:
-            print(f"   ⚠️  Error fetching traces: {str(e)}")
-            if retry < max_retries - 1:
-                time.sleep(2)
-    
-    return None
+    This uses Langfuse SDK v3's built-in method which ensures:
+    - W3C Trace Context compliance (32 hex characters)
+    - Deterministic generation from the same seed
+    - Proper format for OpenTelemetry compatibility
+    """
+    # Create a deterministic seed from session and test case
+    seed = f"{session_id}-{test_case_name}"
+    # Use Langfuse's built-in method for W3C compliant trace IDs
+    return Langfuse.create_trace_id(seed=seed)
 
 
-def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
-    """
-    Run the scoring demo with the provided or generated session ID.
-    
-    Args:
-        session_id: Optional session ID (will generate if not provided)
-        
-    Returns:
-        Tuple of (session_id, trace_ids)
-    """
-    # Setup telemetry
-    telemetry = setup_telemetry("strands-scoring-demo")
-    
-    # Initialize Langfuse client for scoring
-    langfuse_client = get_langfuse_client(langfuse_pk, langfuse_sk, langfuse_host)
+def main(session_id=None):
+    # Initialize the Langfuse OpenAI client
+    client = OpenAI(
+        base_url='http://localhost:11434/v1',
+        api_key='ollama',
+    )
     
     if not session_id:
         session_id = f"scoring-demo-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     
-    print("🎯 Starting Strands Agents + Langfuse Scoring Demo")
+    print("🎯 Starting Ollama + Langfuse Scoring Demo")
+    print(f"📦 Using model: {model}")
     print(f"📊 Session ID: {session_id}")
-    print(f"🌐 Langfuse host: {langfuse_host}")
-    print("🔑 Using deterministic trace IDs for reliable scoring")
+    print(f"🌐 Langfuse host: {os.getenv('LANGFUSE_HOST')}")
     print("=" * 70)
     
     results = []
@@ -280,30 +238,47 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
         print(f"❓ Question: {test_case['user']}")
         print(f"🎯 Expected: {test_case['expected_answer']}")
         
+        # Generate trace ID
+        trace_id = generate_trace_id(session_id, test_case['name'])
+        trace_ids.append(trace_id)
+        
         try:
-            # Create agent with test-specific attributes
-            # NOTE: We use natural Strands integration here - no Langfuse wrapping
-            # Strands uses OTEL telemetry which creates traces with auto-generated IDs
-            agent = create_agent(
-                system_prompt=test_case["system"],
-                session_id=session_id,
-                user_id="scoring-evaluator",
-                tags=["strands-scoring", test_case["name"], test_case["category"]],
-                **{
-                    "test.name": test_case["name"],
-                    "test.category": test_case["category"],
-                    "test.expected": test_case["expected_answer"],
-                    "test.method": test_case["scoring_method"]
-                }
-            )
+            # Make the API call with tracing using v3 trace context pattern
+            # This demonstrates the v3 SDK's span-based approach for custom trace IDs
+            # 
+            # Why use span context here instead of just the OpenAI wrapper?
+            # 1. We need deterministic trace IDs for testing (not random ones)
+            # 2. We want to score the trace immediately after getting the response
+            # 3. The span gives us direct access to scoring methods
+            # 
+            # For simpler demos without scoring, just use the OpenAI wrapper directly!
+            langfuse = get_client()
             
-            # Execute the agent - this creates OTEL traces automatically
-            response = agent(test_case["user"])
-            answer = str(response)
+            # Create a span with our custom trace ID
+            # This allows us to control the trace ID for testing purposes
+            with langfuse.start_as_current_span(
+                name=f"scoring-{test_case['name']}",
+                trace_context={"trace_id": trace_id}
+            ) as span:
+                # Inside the span context, the OpenAI wrapper will attach
+                # this call to our span instead of creating a new trace
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": test_case["system"]},
+                        {"role": "user", "content": test_case["user"]}
+                    ],
+                    metadata={
+                        "test_case": test_case["name"],
+                        "expected_answer": test_case["expected_answer"],
+                        "scoring_method": test_case["scoring_method"],
+                        "category": test_case["category"],
+                        "langfuse_session_id": session_id
+                    }
+                )
             
+            answer = response.choices[0].message.content.strip()
             print(f"🤖 Response: {answer[:150]}{'...' if len(answer) > 150 else ''}")
-            
-            print(format_dashboard_metrics(response, trace_id="pending-batch-scoring"))
             
             # Evaluate the response
             score_result = evaluate_response(answer, test_case)
@@ -320,7 +295,56 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
             print(f"{score_emoji} Score: {score_value:.2f}")
             print(f"💭 Reasoning: {score_result['reasoning']}")
             
-            print("-" * 70)
+            # Wait a moment to ensure trace is created
+            time.sleep(0.5)
+            
+            # Score the trace using v3 span methods
+            # Note: We're scoring immediately after getting the response
+            # This is convenient for demos but has trade-offs:
+            # - Pro: Scores are attached to traces in real-time
+            # - Pro: Can see scores immediately in Langfuse dashboard
+            # - Con: More complex code with span context management
+            # - Con: If scoring fails, it might affect the main flow
+            # 
+            # Alternative approach for production:
+            # 1. Collect all responses first
+            # 2. Score them in a batch at the end
+            # 3. Use langfuse_client.score() with the trace IDs
+            try:
+                # Update the span with additional metadata
+                span.update(
+                    user_id=f"test-{test_case['category']}",
+                    tags=[test_case["category"], test_case["name"]]
+                )
+                
+                # Score the trace using the span's trace scoring method
+                # This immediately sends the score to Langfuse
+                span.score_trace(
+                    name=f"automated_{test_case['scoring_method']}",
+                    value=score_value,
+                    comment=score_result['reasoning'],
+                    data_type="NUMERIC"
+                )
+                print(f"📤 Numeric score sent to Langfuse: {score_value:.2f}")
+                
+                # Category score
+                category_score = "passed" if score_value >= 0.8 else "partial" if score_value >= 0.5 else "failed"
+                span.score_trace(
+                    name="test_result",
+                    value=category_score,
+                    data_type="CATEGORICAL"
+                )
+                print(f"📤 Category score sent to Langfuse: {category_score}")
+                
+                # Test type score
+                span.score_trace(
+                    name="test_category",
+                    value=test_case["category"],
+                    data_type="CATEGORICAL"
+                )
+                
+            except Exception as e:
+                print(f"⚠️  Failed to send score to Langfuse: {str(e)}")
             
             results.append({
                 "test_case": test_case["name"],
@@ -331,10 +355,8 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
                 "score": score_value,
                 "reasoning": score_result["reasoning"],
                 "method": test_case["scoring_method"],
-                "trace_id": None,  # Will be found later
-                "scores_sent": False,  # Will be updated after batch scoring
-                "tokens": response.metrics.accumulated_usage['totalTokens'],
-                "latency_ms": response.metrics.accumulated_metrics['latencyMs']
+                "trace_id": trace_id,
+                "scores_sent": True
             })
             
         except Exception as e:
@@ -348,85 +370,9 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
                 "score": 0.0,
                 "reasoning": f"Error occurred: {str(e)}",
                 "method": test_case["scoring_method"],
-                "trace_id": "error",
-                "scores_sent": False,
-                "tokens": 0,
-                "latency_ms": 0
+                "trace_id": trace_id,
+                "scores_sent": False
             })
-    
-    # Force flush telemetry before scoring
-    if hasattr(telemetry, 'tracer_provider') and hasattr(telemetry.tracer_provider, 'force_flush'):
-        telemetry.tracer_provider.force_flush()
-    
-    # Batch Scoring Phase
-    # NOTE: We perform scoring as a separate batch operation because:
-    # 1. Strands uses OTEL telemetry which generates trace IDs automatically
-    # 2. We cannot control or predict these trace IDs during agent execution
-    # 3. Traces need time to be processed and indexed in Langfuse
-    # 4. This approach ensures higher success rate for attaching scores
-    print("\n" + "=" * 70)
-    print("📊 BATCH SCORING PHASE")
-    print("=" * 70)
-    print("⏳ Waiting 10 seconds for all traces to be processed...")
-    time.sleep(10)
-    
-    scores_sent = 0
-    scores_failed = 0
-    
-    for i, result in enumerate(results):
-        if result["score"] is None:  # Skip error results
-            continue
-            
-        print(f"\n🎯 Scoring test {i+1}/{len(results)}: {result['test_case']}")
-        
-        # Find the trace for this test
-        trace_id = find_trace_for_test(session_id, result["test_case"])
-        
-        if trace_id:
-            result["trace_id"] = trace_id
-            trace_ids.append(trace_id)
-            
-            # Score the trace in Langfuse
-            try:
-                # Automated scoring
-                langfuse_client.create_score(
-                    trace_id=trace_id,
-                    name=f"automated_{result['method']}",
-                    value=result["score"],
-                    comment=result['reasoning'],
-                    data_type="NUMERIC"
-                )
-                
-                # Category score
-                category_score = "passed" if result["score"] >= 0.8 else "partial" if result["score"] >= 0.5 else "failed"
-                langfuse_client.create_score(
-                    trace_id=trace_id,
-                    name="test_result",
-                    value=category_score,
-                    data_type="CATEGORICAL"
-                )
-                
-                # Test type score
-                langfuse_client.create_score(
-                    trace_id=trace_id,
-                    name="test_category",
-                    value=result["category"],
-                    data_type="CATEGORICAL"
-                )
-                
-                result["scores_sent"] = True
-                scores_sent += 1
-                print(f"   ✅ Scores sent successfully")
-                
-            except Exception as e:
-                print(f"   ⚠️  Failed to send score: {str(e)}")
-                scores_failed += 1
-        else:
-            print(f"   ⚠️  Could not find trace ID for scoring")
-            result["trace_id"] = f"not-found-{result['test_case']}"
-            scores_failed += 1
-    
-    print(f"\n📊 Scoring Results: {scores_sent} succeeded, {scores_failed} failed")
     
     # Summary
     print("\n" + "=" * 70)
@@ -447,13 +393,6 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
     print(f"⚠️  Partial (0.5-0.79): {partial}")
     print(f"❌ Failed (<0.5): {failed}")
     
-    # Performance metrics
-    total_tokens = sum(r["tokens"] for r in results)
-    avg_latency = sum(r["latency_ms"] for r in results) / len(results) if results else 0
-    print(f"\n📈 Performance Metrics:")
-    print(f"Total Tokens Used: {total_tokens}")
-    print(f"Average Latency: {avg_latency:.0f}ms")
-    
     # Category breakdown
     print("\n📂 By Category:")
     categories = {}
@@ -467,37 +406,45 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
         cat_avg = sum(scores) / len(scores)
         print(f"  {cat}: {cat_avg:.2f} (n={len(scores)})")
     
+    # Detailed results
+    print("\n📋 Detailed Results:")
+    print("-" * 70)
+    for r in results:
+        status = "✅" if r["score"] >= 0.8 else "⚠️" if r["score"] >= 0.5 else "❌"
+        print(f"{status} {r['test_case']}: {r['score']:.2f}")
+        print(f"   Expected: {r['expected']}")
+        print(f"   Got: {r['actual'][:100]}{'...' if len(r['actual']) > 100 else ''}")
+        print(f"   {r['reasoning']}")
+        print(f"   Trace ID: {r['trace_id']}")
+        print()
+    
     # Save results
     output_file = f"scoring_results_{session_id}.json"
     with open(output_file, "w") as f:
         json.dump({
             "session_id": session_id,
             "timestamp": datetime.now().isoformat(),
-            "trace_ids": [tid for tid in trace_ids if tid],
+            "trace_ids": trace_ids,
             "summary": {
                 "total_tests": total_tests,
                 "average_score": avg_score,
                 "passed": passed,
                 "partial": partial,
                 "failed": failed,
-                "total_tokens": total_tokens,
-                "average_latency_ms": avg_latency,
                 "by_category": {cat: sum(scores)/len(scores) for cat, scores in categories.items()}
             },
             "results": results
         }, f, indent=2)
     
     print(f"\n💾 Results saved to {output_file}")
-    print(f"🔍 Check your Langfuse dashboard at {langfuse_host} to see the scores")
+    print(f"🔍 Check your Langfuse dashboard at {os.getenv('LANGFUSE_HOST')} to see the scores")
     if session_id:
-        print(f"📍 Filter by tags: strands-scoring")
+        print(f"📍 Filter by session ID: {session_id}")
     
-    # Final flush
-    print("\n🔄 Flushing remaining events to Langfuse...")
+    # Ensure all events are sent before exiting
+    print("\n🔄 Flushing events to Langfuse...")
     langfuse_client.flush()
-    if hasattr(telemetry, 'tracer_provider') and hasattr(telemetry.tracer_provider, 'force_flush'):
-        telemetry.tracer_provider.force_flush()
-    time.sleep(3)  # Give time for final flush to complete
+    time.sleep(2)  # Give time for flush to complete
     
     print("\n✅ Scoring demo complete!")
     return session_id, trace_ids
@@ -506,4 +453,4 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
 if __name__ == "__main__":
     # Check if session ID was passed as command line argument
     session_id = sys.argv[1] if len(sys.argv) > 1 else None
-    run_demo(session_id)
+    main(session_id)

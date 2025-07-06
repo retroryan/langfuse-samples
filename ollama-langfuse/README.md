@@ -1,6 +1,6 @@
-# Ollama + Langfuse Integration
+# Ollama + Langfuse Integration (SDK v3)
 
-This example demonstrates how to integrate local Ollama models with Langfuse observability for tracing, monitoring, and scoring LLM responses.
+This example demonstrates how to integrate local Ollama models with Langfuse observability (SDK v3) for tracing, monitoring, and scoring LLM responses.
 
 ## Prerequisites
 
@@ -49,15 +49,15 @@ python run_scoring_and_validate.py     # Validates scoring functionality
 
 ## How It Works
 
-The integration uses Langfuse's OpenAI SDK wrapper to automatically trace all Ollama API calls. This captures:
+The integration uses Langfuse's OpenAI SDK wrapper (v3) to automatically trace all Ollama API calls. This captures:
 - Request/response content
 - Latency measurements
 - Token usage statistics
 - Custom metadata and tags
 
-### Langfuse Tracing Details
+### Langfuse SDK v3 Features
 
-Langfuse provides observability for LLM applications by automatically capturing:
+Langfuse SDK v3 is built on OpenTelemetry (OTEL) standards and provides enhanced observability:
 
 1. **Trace Data**: Each LLM interaction creates a trace containing:
    - Input prompts and output responses
@@ -81,6 +81,20 @@ Langfuse provides observability for LLM applications by automatically capturing:
    )
    ```
 
+6. **V3-Specific Improvements**:
+   - Built on OpenTelemetry (OTEL) for standardized observability
+   - Enhanced metadata handling with `langfuse_` prefixed fields
+   - Improved context propagation across function boundaries
+   - Better performance with optimized event batching
+   - Deterministic trace ID generation for testing
+
 All API calls through this client are automatically traced without additional code changes. View traces in the Langfuse dashboard at http://localhost:3000.
+
+### Important Notes
+
+- **Event Flushing**: The scoring demo calls `langfuse_client.flush()` to ensure all events are sent before the script exits. This is important for short-lived scripts.
+- **Metadata Fields**: Use `langfuse_session_id`, `langfuse_user_id`, and `langfuse_tags` in the metadata parameter for v3 compatibility.
+- **Trace IDs**: For deterministic trace IDs (useful in testing), pass the trace ID when creating completions.
+- **Scoring Demo**: The scoring demo has been simplified to use a cleaner approach - it collects all LLM responses first, then scores them in a batch at the end. This makes the code much easier to understand compared to the previous span-based approach. An advanced version using v3 span context is available in `ollama_scoring_demo_advanced.py` for those interested in more complex scoring patterns.
 
 For detailed documentation and advanced usage, refer to the parent repository README.
