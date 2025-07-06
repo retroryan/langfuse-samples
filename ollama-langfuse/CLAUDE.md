@@ -75,7 +75,8 @@ This automatically captures:
    - Tests LLM responses with intentional correct/incorrect answers
    - Multiple scoring methods: exact_match, keyword_match
    - Creates both numeric (0.0-1.0) and categorical scores
-   - Generates deterministic trace IDs using MD5 hashing
+   - Uses Langfuse v3's deterministic trace ID generation (`Langfuse.create_trace_id()`)
+   - Leverages v3 span context for trace management and scoring
    - Saves results to timestamped JSON files
 
 3. **Score Validation** (`run_scoring_and_validate.py`):
@@ -96,7 +97,9 @@ The `.env` file (created by setup.py) contains:
 - Ollama must be running on port 11434
 - Model is configured via OLLAMA_MODEL in .env (setup.py helps select this)
 - All demos read the model from environment variable with fallback to llama3.1:8b
-- Trace IDs can be deterministic (scoring demo) or UUID-based (validation scripts)
+- Uses Langfuse SDK v3 with OpenTelemetry-based tracing
+- Trace IDs are generated using `Langfuse.create_trace_id()` for deterministic IDs
+- Scoring demo uses v3 span context pattern with `start_as_current_span()`
 - Session IDs are passed as command-line arguments to demos
 - Scores are sent with proper data types (NUMERIC or CATEGORICAL)
-- All examples include proper event flushing before exit
+- All examples include proper event flushing before exit using `langfuse.flush()`

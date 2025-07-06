@@ -13,6 +13,8 @@ Prerequisites:
 import os
 import sys
 from dotenv import load_dotenv
+# The Langfuse OpenAI wrapper automatically intercepts all OpenAI API calls
+# and creates traces in Langfuse without changing your code structure
 from langfuse.openai import OpenAI
 
 # Load environment variables
@@ -23,10 +25,14 @@ model = os.getenv('OLLAMA_MODEL', 'llama3.1:8b')
 
 def main(session_id=None):
     # Initialize the Langfuse OpenAI client
-    # Configure it to use Ollama's OpenAI-compatible endpoint
+    # This looks exactly like regular OpenAI code, but behind the scenes:
+    # 1. Langfuse wraps the OpenAI client class
+    # 2. Every API call (chat.completions.create) is automatically traced
+    # 3. Request/response data, latency, and token usage are captured
+    # 4. Traces are sent asynchronously to your Langfuse instance
     client = OpenAI(
-        base_url='http://localhost:11434/v1',
-        api_key='ollama',  # required but unused
+        base_url='http://localhost:11434/v1',  # Point to Ollama instead of OpenAI
+        api_key='ollama',  # Required by OpenAI client but unused by Ollama
     )
     
     print("🚀 Starting Ollama + Langfuse integration example...")
@@ -44,14 +50,23 @@ def main(session_id=None):
     if session_id:
         metadata["langfuse_session_id"] = session_id
     
+    # This API call looks identical to regular OpenAI usage
+    # Under the covers, Langfuse:
+    # 1. Intercepts this method call
+    # 2. Records the start time
+    # 3. Passes the call to the actual OpenAI client (pointing to Ollama)
+    # 4. Captures the response, end time, and token usage
+    # 5. Creates a trace with all this data
+    # 6. The 'name' parameter becomes the trace name in Langfuse
+    # 7. The 'metadata' dict is attached to the trace for filtering/analysis
     response = client.chat.completions.create(
-        name="ollama-traces",
+        name="ollama-traces",  # Trace name in Langfuse dashboard
         model=model,
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "Who was the first person to step on the moon?"}
         ],
-        metadata=metadata
+        metadata=metadata  # Custom data attached to trace
     )
     
     print(f"Response: {response.choices[0].message.content}")
@@ -105,6 +120,14 @@ def main(session_id=None):
     print(f"🔍 Check your Langfuse dashboard at {os.getenv('LANGFUSE_HOST')} to see the traces.")
     if session_id:
         print(f"📍 Filter by session ID: {session_id}")
+    
+    # Ensure all events are sent before exiting (v3 best practice)
+    # The Langfuse wrapper sends traces asynchronously in the background
+    # For short-lived scripts, we need to flush the queue before exiting
+    # Otherwise, the script might terminate before traces are sent
+    from langfuse import get_client
+    langfuse = get_client()
+    langfuse.flush()
 
 if __name__ == "__main__":
     # Check if session ID was passed as command line argument

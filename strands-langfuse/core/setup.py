@@ -92,5 +92,6 @@ def get_langfuse_client(langfuse_pk=None, langfuse_sk=None, langfuse_host=None):
     return Langfuse(
         public_key=pk,
         secret_key=sk,
-        host=host
+        host=host,
+        tracing_enabled=True  # v3 uses tracing_enabled instead of enabled
     )

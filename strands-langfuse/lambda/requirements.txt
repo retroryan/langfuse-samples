@@ -1,4 +1,4 @@
 strands-agents[otel]>=0.2.0
-langfuse>=2.53.3
+langfuse>=3.0.0
 boto3>=1.35.0
 python-dotenv>=1.0.0
