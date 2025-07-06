@@ -1,0 +1,28 @@
+{
+  "And": [
+    {
+      "Tags": {
+        "Key": "Project",
+        "Values": ["Langfuse"]
+      }
+    },
+    {
+      "Dimensions": {
+        "Key": "SERVICE",
+        "Values": [
+          "Amazon Elastic Container Service",
+          "Amazon Relational Database Service",
+          "Amazon Simple Storage Service",
+          "Amazon Elastic Load Balancing",
+          "Amazon Elastic Compute Cloud - Compute",
+          "Amazon CloudWatch",
+          "AWS Secrets Manager",
+          "Amazon Elastic File System",
+          "AWS Key Management Service",
+          "Amazon ElastiCache",
+          "AmazonCloudWatch"
+        ]
+      }
+    }
+  ]
+}

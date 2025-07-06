@@ -15,7 +15,7 @@ from typing import Dict, Any, List, Tuple, Optional
 # Initialize OTEL before importing Agent
 from core.setup import initialize_langfuse_telemetry, setup_telemetry, get_langfuse_client
 from core.agent_factory import create_agent
-from core.metrics_formatter import format_dashboard_metrics
+from core.metrics_formatter import format_dashboard_metrics, TokenAggregator
 
 # Initialize Langfuse OTEL
 langfuse_pk, langfuse_sk, langfuse_host = initialize_langfuse_telemetry()
@@ -334,6 +334,8 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
                 "trace_id": None,  # Will be found later
                 "scores_sent": False,  # Will be updated after batch scoring
                 "tokens": response.metrics.accumulated_usage['totalTokens'],
+                "input_tokens": response.metrics.accumulated_usage.get('inputTokens', 0),
+                "output_tokens": response.metrics.accumulated_usage.get('outputTokens', 0),
                 "latency_ms": response.metrics.accumulated_metrics['latencyMs']
             })
             
@@ -351,6 +353,8 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
                 "trace_id": "error",
                 "scores_sent": False,
                 "tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
                 "latency_ms": 0
             })
     
@@ -449,10 +453,21 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
     
     # Performance metrics
     total_tokens = sum(r["tokens"] for r in results)
+    total_input_tokens = sum(r.get("input_tokens", 0) for r in results)
+    total_output_tokens = sum(r.get("output_tokens", 0) for r in results)
     avg_latency = sum(r["latency_ms"] for r in results) / len(results) if results else 0
     print(f"\n📈 Performance Metrics:")
-    print(f"Total Tokens Used: {total_tokens}")
+    print(f"Total Tokens Used: {total_tokens:,}")
     print(f"Average Latency: {avg_latency:.0f}ms")
+    
+    # Cost calculation
+    aggregator = TokenAggregator()
+    aggregator.total_input_tokens = total_input_tokens
+    aggregator.total_output_tokens = total_output_tokens
+    aggregator.total_tokens = total_tokens
+    print(aggregator.format_total_cost())
+    print(f"\n📊 Traces sent to Langfuse: {len([tid for tid in trace_ids if tid])}")
+    print(f"🎯 Scores sent to Langfuse: {scores_sent * 3}")  # 3 scores per test
     
     # Category breakdown
     print("\n📂 By Category:")

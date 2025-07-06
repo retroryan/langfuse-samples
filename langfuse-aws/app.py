@@ -31,6 +31,12 @@ AWS_ENV = cdk.Environment(
 
 app = cdk.App()
 
+# Apply global tags to all resources for cost tracking
+cdk.Tags.of(app).add("Project", "Langfuse")
+cdk.Tags.of(app).add("Environment", app.node.try_get_context("environment") or "production")
+cdk.Tags.of(app).add("ManagedBy", "CDK")
+cdk.Tags.of(app).add("Service", "Langfuse-Observability")
+
 ecr_stack = ECRStack(app, "LangfuseECRStack",
   env=AWS_ENV
 )

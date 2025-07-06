@@ -14,7 +14,7 @@ from typing import Tuple, List, Optional
 # Initialize OTEL before importing Agent
 from core.setup import initialize_langfuse_telemetry, setup_telemetry
 from core.agent_factory import create_agent
-from core.metrics_formatter import format_dashboard_metrics
+from core.metrics_formatter import format_dashboard_metrics, TokenAggregator
 
 # Initialize Langfuse OTEL
 langfuse_pk, langfuse_sk, langfuse_host = initialize_langfuse_telemetry()
@@ -32,6 +32,9 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
     """
     # Setup telemetry
     telemetry = setup_telemetry("strands-monty-python-demo")
+    
+    # Initialize token aggregator for cost tracking
+    aggregator = TokenAggregator()
     
     print("🦜 Strands Agents + Langfuse Demo: Monty Python Edition\n")
     
@@ -72,6 +75,7 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
     print(f"\n🤖 AI Scholar: {response1}")
     
     print(format_dashboard_metrics(response1, trace_id=f"{session_id}-q1"))
+    aggregator.add_response(response1, "Swallow Question")
     
     print("-" * 70)
     trace_ids.append(f"{session_id}-q1")
@@ -89,6 +93,7 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
     print(f"\n🤖 AI Scholar: {response2}")
     
     print(format_dashboard_metrics(response2, trace_id=f"{session_id}-q2"))
+    aggregator.add_response(response2, "African or European")
     
     print("-" * 70)
     trace_ids.append(f"{session_id}-q2")
@@ -113,6 +118,7 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
     print(f"\n🤖 AI Assistant: {response3}")
     
     print(format_dashboard_metrics(response3, trace_id=f"{session_id}-q3"))
+    aggregator.add_response(response3, "Favorite Color")
     
     print("-" * 70)
     trace_ids.append(f"{session_id}-q3")
@@ -134,6 +140,7 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
     print(f"\n🤖 Wise Sage: {response4}")
     
     print(format_dashboard_metrics(response4, trace_id=f"{session_id}-bonus"))
+    aggregator.add_response(response4, "Holy Grail Secret")
     
     print("-" * 70)
     trace_ids.append(f"{session_id}-bonus")
@@ -159,6 +166,7 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
     print(f"\n🤖 Python Assistant: {response5}")
     
     print(format_dashboard_metrics(response5, trace_id="spanish-inquisition"))
+    aggregator.add_response(response5, "Spanish Inquisition")
     
     print("-" * 70)
     trace_ids.append("spanish-inquisition")
@@ -168,6 +176,14 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
     print("=" * 70)
     
     print("\n🎬 THE END")
+    
+    # Display cost summary with Monty Python theme
+    cost_summary = aggregator.format_total_cost()
+    # Replace the header with a themed one
+    cost_summary = cost_summary.replace("💰 TOTAL COST SUMMARY", "🏺 YOUR QUEST COST SUMMARY")
+    cost_summary = cost_summary.replace("Estimated Total Cost:", "Gold Pieces Required:")
+    print(cost_summary)
+    print(f"\n📊 Traces sent to Langfuse: {len(trace_ids)}")
     
     print("\n" + "=" * 70)
     
