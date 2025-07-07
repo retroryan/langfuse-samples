@@ -23,7 +23,7 @@ AWS Lambda deployment of the Strands-Langfuse integration with OpenTelemetry-bas
 ./test-docker.sh
 
 # Deploy to AWS
-./deploy-cfn.sh  # or: python deploy-lambda.py
+python deploy-lambda.py
 
 # Test deployment
 python test_lambda.py

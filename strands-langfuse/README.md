@@ -76,17 +76,16 @@ python view_traces.py
 1. **Build and deploy the Lambda**:
    ```bash
    cd lambda
-   python build_lambda.py
-   cdk deploy
+   python deploy-lambda.py
    ```
 
-2. **Test via AWS Console**:
-   - Navigate to Lambda in AWS Console
-   - Find `StrandsLangfuseFunction`
-   - Use the Test feature with a sample event
+2. **Test the Lambda function**:
+   ```bash
+   python test_lambda.py
+   ```
 
 3. **Monitor traces**:
-   - Check your AWS-deployed Langfuse instance
+   - Open your Langfuse dashboard
    - Traces will appear under the Lambda's session
 
 For more Lambda details, see [lambda/README.md](lambda/README.md).

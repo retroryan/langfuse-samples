@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Deploy Strands-Langfuse Lambda using CloudFormation
-Python version of deploy-cfn.sh
 """
 import os
 import sys
