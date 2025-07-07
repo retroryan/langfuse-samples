@@ -24,47 +24,101 @@ def handler(event, context):
         demo_name = body.get('demo', 'custom')
         query = body.get('query', 'What is the capital of France?')
         
-        # Generate unique run ID
+        # Use provided session_id or generate unique run ID
+        session_id = body.get('session_id')
         run_id = str(uuid.uuid4())[:8]
         timestamp = datetime.now().isoformat()
         
         if demo_name == 'scoring':
-            session_id, trace_ids = scoring.run_demo(f"lambda-scoring-{run_id}")
+            final_session_id = session_id or f"lambda-scoring-{run_id}"
+            session_id, trace_ids, metrics = scoring.run_demo(final_session_id)
             result = {
                 'demo': 'scoring',
                 'test_results': len(trace_ids),
-                'session_id': session_id
+                'session_id': session_id,
+                'usage_summary': metrics,
+                'trace_info': {
+                    'traces_created': len(trace_ids),
+                    'langfuse_url': langfuse_host,
+                    'view_instructions': {
+                        'filter_by_run_id': f"run-{run_id}",
+                        'filter_by_tags': ["strands-scoring", f"run-{run_id}"],
+                        'filter_by_session_id': session_id
+                    }
+                }
             }
         elif demo_name == 'monty_python':
-            session_id, trace_ids = monty_python.run_demo(f"lambda-monty-{run_id}")
+            final_session_id = session_id or f"lambda-monty-{run_id}"
+            session_id, trace_ids, metrics = monty_python.run_demo(final_session_id)
             result = {
                 'demo': 'monty_python',
                 'interactions': len(trace_ids),
-                'session_id': session_id
+                'session_id': session_id,
+                'usage_summary': metrics,
+                'trace_info': {
+                    'traces_created': len(trace_ids),
+                    'langfuse_url': langfuse_host,
+                    'view_instructions': {
+                        'filter_by_run_id': f"run-{run_id}",
+                        'filter_by_tags': ["monty-python", f"run-{run_id}"],
+                        'filter_by_session_id': session_id
+                    }
+                }
             }
         elif demo_name == 'examples':
-            session_id, trace_ids = examples.run_demo(f"lambda-examples-{run_id}")
+            final_session_id = session_id or f"lambda-examples-{run_id}"
+            session_id, trace_ids, metrics = examples.run_demo(final_session_id)
             result = {
                 'demo': 'examples',
                 'examples_run': len(trace_ids),
-                'session_id': session_id
+                'session_id': session_id,
+                'usage_summary': metrics,
+                'trace_info': {
+                    'traces_created': len(trace_ids),
+                    'langfuse_url': langfuse_host,
+                    'view_instructions': {
+                        'filter_by_run_id': f"run-{run_id}",
+                        'filter_by_tags': ["strands-demo", f"run-{run_id}"],
+                        'filter_by_session_id': session_id
+                    }
+                }
             }
         else:
             # Custom query mode (existing behavior)
+            final_session_id = session_id or f"lambda-custom-{run_id}"
             agent = create_agent(
                 system_prompt="You are a helpful assistant. Be concise in your responses.",
-                session_id=f"lambda-custom-{run_id}",
+                session_id=final_session_id,
                 user_id="lambda-user",
                 tags=["lambda-demo", "custom", f"run-{run_id}"]
             )
             response = agent(query)
+            # Calculate cost for custom query
+            input_tokens = response.metrics.accumulated_usage.get('inputTokens', 0)
+            output_tokens = response.metrics.accumulated_usage.get('outputTokens', 0)
+            total_tokens = response.metrics.accumulated_usage.get('totalTokens', 0)
+            # Simple cost calculation (Claude 3.5 Sonnet pricing)
+            estimated_cost = (input_tokens * 0.003 / 1000) + (output_tokens * 0.015 / 1000)
+            
             result = {
                 'demo': 'custom',
                 'query': query,
                 'response': str(response),
-                'metrics': {
-                    'tokens': response.metrics.accumulated_usage['totalTokens'],
-                    'latency_ms': response.metrics.accumulated_metrics['latencyMs']
+                'session_id': final_session_id,
+                'usage_summary': {
+                    'total_tokens': total_tokens,
+                    'input_tokens': input_tokens,
+                    'output_tokens': output_tokens,
+                    'estimated_cost': round(estimated_cost, 4)
+                },
+                'trace_info': {
+                    'traces_created': 1,
+                    'langfuse_url': langfuse_host,
+                    'view_instructions': {
+                        'filter_by_run_id': f"run-{run_id}",
+                        'filter_by_tags': ["lambda-demo", "custom", f"run-{run_id}"],
+                        'filter_by_session_id': final_session_id
+                    }
                 }
             }
         

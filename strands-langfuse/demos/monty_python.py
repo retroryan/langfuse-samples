@@ -204,7 +204,15 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
     
     print("\n✅ Done! Your traces should now be visible in Langfuse.")
     
-    return session_id, trace_ids
+    # Prepare metrics for return
+    metrics = {
+        "total_tokens": aggregator.total_tokens,
+        "input_tokens": aggregator.total_input_tokens,
+        "output_tokens": aggregator.total_output_tokens,
+        "estimated_cost": aggregator.calculate_total_cost()
+    }
+    
+    return session_id, trace_ids, metrics
 
 
 if __name__ == "__main__":
