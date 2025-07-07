@@ -209,13 +209,22 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
         print(f"   Filter by run ID: {run_id}")
         print(f"   Filter by tags: strands-demo, run-{run_id}")
         
-        return session_id, trace_ids
+        # Prepare metrics for return
+        metrics = {
+            "total_tokens": aggregator.total_tokens,
+            "input_tokens": aggregator.total_input_tokens,
+            "output_tokens": aggregator.total_output_tokens,
+            "estimated_cost": aggregator.calculate_total_cost()
+        }
+        
+        return session_id, trace_ids, metrics
         
     except Exception as e:
         print(f"\n❌ Error running demos: {e}")
         import traceback
         traceback.print_exc()
-        return session_id, trace_ids
+        # Return empty metrics on error
+        return session_id, trace_ids, {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0, "estimated_cost": 0.0}
 
 
 if __name__ == "__main__":

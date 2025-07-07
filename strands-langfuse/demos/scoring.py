@@ -5,6 +5,7 @@ This demo showcases how to automatically score AWS Strands agents responses usin
 Langfuse's scoring capabilities. It tests various scenarios where agents should give
 correct or incorrect answers, then scores their responses programmatically.
 """
+import os
 import sys
 import json
 import time
@@ -482,28 +483,7 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
         cat_avg = sum(scores) / len(scores)
         print(f"  {cat}: {cat_avg:.2f} (n={len(scores)})")
     
-    # Save results
-    output_file = f"scoring_results_{session_id}.json"
-    with open(output_file, "w") as f:
-        json.dump({
-            "session_id": session_id,
-            "timestamp": datetime.now().isoformat(),
-            "trace_ids": [tid for tid in trace_ids if tid],
-            "summary": {
-                "total_tests": total_tests,
-                "average_score": avg_score,
-                "passed": passed,
-                "partial": partial,
-                "failed": failed,
-                "total_tokens": total_tokens,
-                "average_latency_ms": avg_latency,
-                "by_category": {cat: sum(scores)/len(scores) for cat, scores in categories.items()}
-            },
-            "results": results
-        }, f, indent=2)
-    
-    print(f"\n💾 Results saved to {output_file}")
-    print(f"🔍 Check your Langfuse dashboard at {langfuse_host} to see the scores")
+    print(f"\n🔍 Check your Langfuse dashboard at {langfuse_host} to see the scores")
     if session_id:
         print(f"📍 Filter by tags: strands-scoring")
     
@@ -514,8 +494,16 @@ def run_demo(session_id: Optional[str] = None) -> Tuple[str, List[str]]:
         telemetry.tracer_provider.force_flush()
     time.sleep(3)  # Give time for final flush to complete
     
+    # Prepare metrics for return
+    metrics = {
+        "total_tokens": total_tokens,
+        "input_tokens": total_input_tokens,
+        "output_tokens": total_output_tokens,
+        "estimated_cost": aggregator.calculate_total_cost()
+    }
+    
     print("\n✅ Scoring demo complete!")
-    return session_id, trace_ids
+    return session_id, trace_ids, metrics
 
 
 if __name__ == "__main__":

@@ -51,20 +51,6 @@ pip install -r requirements.txt
 
 ## Running Examples
 
-### Interactive Mode
-```bash
-# Launch interactive menu to select demos
-python main.py
-```
-
-### Direct Demo Execution
-```bash
-# Run specific demos directly
-python main.py scoring           # Automated evaluation demo
-python main.py monty_python      # Fun themed demo
-python main.py examples          # Multiple agent examples
-```
-
 ### Validation Scripts
 ```bash
 # Run demos with automatic trace validation
@@ -80,6 +66,31 @@ python view_traces.py
 # Or open Langfuse UI at http://localhost:3000
 ```
 
+## AWS Lambda Deployment
+
+### Prerequisites
+- **Langfuse deployed on AWS**: You need Langfuse running on AWS first. See [../langfuse-aws](../langfuse-aws/) for deployment instructions.
+
+### Testing the Lambda Function
+
+1. **Build and deploy the Lambda**:
+   ```bash
+   cd lambda
+   python build_lambda.py
+   cdk deploy
+   ```
+
+2. **Test via AWS Console**:
+   - Navigate to Lambda in AWS Console
+   - Find `StrandsLangfuseFunction`
+   - Use the Test feature with a sample event
+
+3. **Monitor traces**:
+   - Check your AWS-deployed Langfuse instance
+   - Traces will appear under the Lambda's session
+
+For more Lambda details, see [lambda/README.md](lambda/README.md).
+
 ## Langfuse Integration Architecture
 
 ### OTEL-Based Integration
@@ -89,6 +100,16 @@ This demo uses **OpenTelemetry (OTEL)** for tracing, which differs from Langfuse
 1. **AWS Strands Compatibility**: Strands agents have built-in OTEL support via `strands.telemetry`
 2. **Automatic Trace Propagation**: OTEL handles context propagation across nested agent calls
 3. **Standards-Based**: Both Strands and Langfuse v3 are built on OpenTelemetry standards
+
+### How It Works
+
+The integration uses OpenTelemetry (OTEL) to send traces from Strands agents to Langfuse:
+- Automatic capture of all agent interactions
+- Token usage and latency tracking
+- Session and user identification
+- Custom tags and metadata
+- Programmatic scoring for evaluation
+
 
 ### Key Differences from Langfuse SDK
 
@@ -129,33 +150,7 @@ langfuse_client.create_score(trace_id=trace_id, value=score)
 
 For detailed integration notes, see [KEY_STRANDS_LANGFUSE.md](KEY_STRANDS_LANGFUSE.md).
 
-## AWS Lambda Deployment
-
-### Prerequisites
-- **Langfuse deployed on AWS**: You need Langfuse running on AWS first. See [../langfuse-aws](../langfuse-aws/) for deployment instructions.
-- **AWS CDK**: Install with `npm install -g aws-cdk`
-
-### Testing the Lambda Function
-
-1. **Build and deploy the Lambda**:
-   ```bash
-   cd lambda
-   python build_lambda.py
-   cdk deploy
-   ```
-
-2. **Test via AWS Console**:
-   - Navigate to Lambda in AWS Console
-   - Find `StrandsLangfuseFunction`
-   - Use the Test feature with a sample event
-
-3. **Monitor traces**:
-   - Check your AWS-deployed Langfuse instance
-   - Traces will appear under the Lambda's session
-
-For more Lambda details, see [lambda/README.md](lambda/README.md).
-
-## What's Included
+### What's Included
 
 - **main.py** - Unified entry point with interactive menu or direct demo execution
 - **demos/** - Organized demo modules:
@@ -166,14 +161,6 @@ For more Lambda details, see [lambda/README.md](lambda/README.md).
 - **run_and_validate.py** - Validation script that checks trace creation
 - **view_traces.py** - Query and display traces via API
 
-## How It Works
-
-The integration uses OpenTelemetry (OTEL) to send traces from Strands agents to Langfuse:
-- Automatic capture of all agent interactions
-- Token usage and latency tracking
-- Session and user identification
-- Custom tags and metadata
-- Programmatic scoring for evaluation
 
 
 ## Troubleshooting
@@ -188,7 +175,7 @@ The integration uses OpenTelemetry (OTEL) to send traces from Strands agents to 
 
 ## Cleanup
 
-### Delete All Traces
+### Delete All Traces in Parent Directory
 ```bash
 # Interactive mode (asks for confirmation)
 python delete_traces.py

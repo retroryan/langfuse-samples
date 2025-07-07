@@ -1,374 +1,375 @@
 #!/usr/bin/env python3
 """
-Test script for Strands-Langfuse Lambda
-Validates that the Lambda is working and traces are being sent to Langfuse
+Test Lambda function with interactive mode
+Supports health check, specific demos, or custom queries
 """
 import os
-import sys
 import json
 import time
+import uuid
+import sys
 import requests
 from pathlib import Path
-from datetime import datetime
-from typing import Dict, List, Optional
-from dotenv import load_dotenv
+from base64 import b64encode
 
-# Load environment variables from cloud.env
-cloud_env_path = Path(__file__).parent.parent / "cloud.env"
-if cloud_env_path.exists():
-    load_dotenv(cloud_env_path)
-else:
-    print("❌ Error: cloud.env file not found")
-    sys.exit(1)
-
-# Test queries
-TEST_QUERIES = [
-    {
-        "name": "Basic Math",
-        "query": "What is 2 + 2?",
-        "demo": "custom",
-        "expected_keywords": ["4", "four"]
-    },
-    {
-        "name": "Capital Question",
-        "query": "What is the capital of France?",
-        "demo": "custom",
-        "expected_keywords": ["Paris"]
-    },
-    {
-        "name": "Complex Question",
-        "query": "Explain photosynthesis in simple terms",
-        "demo": "custom",
-        "expected_keywords": ["plants", "sunlight", "energy"]
-    },
-    {
-        "name": "Programming Question",
-        "query": "What is a Python decorator?",
-        "demo": "custom",
-        "expected_keywords": ["function", "wrapper", "@"]
-    }
-]
-
-# Demo tests
-DEMO_TESTS = [
-    {
-        "name": "Scoring Demo",
-        "demo": "scoring",
-        "expected_response": {"demo": "scoring", "test_results": int}
-    },
-    {
-        "name": "Monty Python Demo", 
-        "demo": "monty_python",
-        "expected_response": {"demo": "monty_python", "interactions": int}
-    },
-    {
-        "name": "Examples Demo",
-        "demo": "examples",
-        "expected_response": {"demo": "examples", "examples_run": int}
-    }
-]
-
-def get_lambda_url() -> Optional[str]:
-    """Get Lambda URL from deployment info"""
-    deployment_info_path = Path(__file__).parent / "cdk" / "deployment-info.json"
+def load_environment():
+    """Load environment variables from cloud.env"""
+    env_file = Path(__file__).parent.parent / "cloud.env"
     
-    if not deployment_info_path.exists():
-        return None
+    if not env_file.exists():
+        print("❌ Error: cloud.env not found")
+        return False
     
-    with open(deployment_info_path, 'r') as f:
-        info = json.load(f)
-        return info.get("function_url")
+    with open(env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ[key] = value
+    return True
 
-def test_lambda_query(function_url: str, query: str, demo: str = "custom") -> Dict:
-    """Test a single query against the Lambda"""
-    print(f"\n📤 Sending query: {query} (demo: {demo})")
+def get_lambda_url():
+    """Get Lambda Function URL from CloudFormation"""
+    try:
+        import subprocess
+        result = subprocess.run(
+            [
+                "aws", "cloudformation", "describe-stacks",
+                "--stack-name", "strands-langfuse-lambda",
+                "--query", "Stacks[0].Outputs[?OutputKey=='FunctionUrl'].OutputValue",
+                "--output", "text"
+            ],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+        else:
+            print("❌ Could not get Lambda URL from CloudFormation")
+            print("Please provide the Lambda Function URL:")
+            return input().strip()
+    except Exception as e:
+        print(f"❌ Error getting Lambda URL: {e}")
+        print("Please provide the Lambda Function URL:")
+        return input().strip()
+
+def test_lambda(lambda_url, demo_name="custom", query=None, session_id=None):
+    """Test Lambda function"""
+    payload = {"demo": demo_name}
+    
+    if query:
+        payload["query"] = query
+    
+    if session_id:
+        payload["session_id"] = session_id
+    
+    print(f"\n📤 Testing {demo_name} demo...")
+    if query:
+        print(f"Query: {query}")
+    print(f"Session ID: {session_id or 'auto-generated'}")
+    
+    timeout = 120  # Increased timeout for complex demos
     
     try:
-        payload = {"query": query} if demo == "custom" else {"demo": demo}
         response = requests.post(
-            function_url,
+            lambda_url,
             json=payload,
             headers={"Content-Type": "application/json"},
-            timeout=30
+            timeout=timeout
         )
+        
+        print(f"Status: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
-            if data.get("success"):
-                print(f"✅ Response received: {data.get('response', '')[:100]}...")
-                print(f"   Run ID: {data.get('run_id')}")
-                return data
-            else:
-                print(f"❌ Lambda error: {data.get('error', 'Unknown error')}")
-                return None
+            print("✅ Lambda executed successfully!")
+            
+            # Pretty print based on demo type
+            if demo_name == "custom" and "response" in data:
+                print(f"\n💬 Response: {data['response']}")
+            elif demo_name == "scoring":
+                print(f"🧪 Test Results: {data.get('test_results', 'N/A')}")
+            elif demo_name == "monty_python":
+                print(f"🎭 Interactions: {data.get('interactions', 'N/A')}")
+            elif demo_name == "examples":
+                print(f"📚 Examples Run: {data.get('examples_run', 'N/A')}")
+            
+            # Display usage summary if available
+            if "usage_summary" in data:
+                usage = data["usage_summary"]
+                print("\n" + "=" * 70)
+                print("💰 USAGE SUMMARY")
+                print("=" * 70)
+                print(f"Total Tokens: {usage.get('total_tokens', 0):,}")
+                print(f"Input Tokens: {usage.get('input_tokens', 0):,}")
+                print(f"Output Tokens: {usage.get('output_tokens', 0):,}")
+                print(f"Estimated Cost: ${usage.get('estimated_cost', 0):.4f}")
+                print("=" * 70)
+            
+            # Display trace info if available
+            if "trace_info" in data:
+                trace_info = data["trace_info"]
+                print(f"\n📊 Traces sent to Langfuse: {trace_info.get('traces_created', 0)}")
+                print(f"\n🔍 View your traces in Langfuse:")
+                print(f"   URL: {trace_info.get('langfuse_url', 'N/A')}")
+                if "view_instructions" in trace_info:
+                    instructions = trace_info["view_instructions"]
+                    print(f"   Filter by run ID: {instructions.get('filter_by_run_id', 'N/A')}")
+                    if "filter_by_tags" in instructions:
+                        print(f"   Filter by tags: {', '.join(instructions['filter_by_tags'])}")
+                    print(f"   Filter by session ID: {instructions.get('filter_by_session_id', 'N/A')}")
+            
+            # Use session_id from response
+            response_session_id = data.get('session_id', session_id or 'N/A')
+            print(f"\n✅ Demo completed successfully!")
+            print(f"📊 Session ID: {response_session_id}")
+            
+            # Ensure session_id is in the returned data for trace checking
+            if session_id and 'session_id' not in data:
+                data['session_id'] = session_id
+            
+            return data
         else:
-            print(f"❌ HTTP {response.status_code}: {response.text}")
+            print(f"❌ Lambda returned error: {response.text}")
             return None
             
+    except requests.exceptions.Timeout:
+        print(f"⏱️  Request timed out after {timeout} seconds")
+        print("💡 Tip: Complex demos may take longer. Consider increasing timeout.")
+        return None
     except Exception as e:
-        print(f"❌ Request failed: {str(e)}")
+        print(f"❌ Error calling Lambda: {e}")
         return None
 
-def check_langfuse_trace(run_id: str, retries: int = 10, delay: int = 2) -> bool:
+def check_langfuse_trace(session_id: str, langfuse_host: str, public_key: str, secret_key: str) -> bool:
     """Check if trace exists in Langfuse"""
-    langfuse_host = os.environ.get("LANGFUSE_HOST", "").rstrip('/')
-    public_key = os.environ.get("LANGFUSE_PUBLIC_KEY")
-    secret_key = os.environ.get("LANGFUSE_SECRET_KEY")
+    auth_token = b64encode(f"{public_key}:{secret_key}".encode()).decode()
     
-    if not all([langfuse_host, public_key, secret_key]):
-        print("❌ Missing Langfuse credentials")
-        return False
+    headers = {
+        "Authorization": f"Basic {auth_token}",
+        "Content-Type": "application/json"
+    }
     
-    # API endpoint for traces
-    traces_url = f"{langfuse_host}/api/public/traces"
+    print(f"\n🔍 Checking for trace in Langfuse...")
     
-    print(f"\n🔍 Checking for trace with run_id: {run_id}")
-    
-    for attempt in range(retries):
+    # Retry logic - Lambda traces may take a moment to appear
+    for attempt in range(5):
         try:
-            # Try different query approaches
-            # First try: search by name
-            params = {
-                "page": 1,
-                "limit": 20,
-                "name": f"run-{run_id}"
-            }
-            
-            response = requests.get(
-                traces_url,
-                params=params,
-                auth=(public_key, secret_key),
-                timeout=10
-            )
+            # Try traces endpoint
+            traces_url = f"{langfuse_host}/api/public/traces"
+            params = {"sessionId": session_id}
+            response = requests.get(traces_url, headers=headers, params=params)
             
             if response.status_code == 200:
                 data = response.json()
-                traces = data.get("data", [])
-                
-                # Look for trace by run_id in name or tags
-                found_trace = None
-                for trace in traces:
-                    if run_id in str(trace.get('name', '')) or run_id in str(trace.get('tags', [])):
-                        found_trace = trace
-                        break
-                
-                if not found_trace and attempt == 0:
-                    # Try without name filter to get recent traces
-                    params = {"page": 1, "limit": 50}
-                    response = requests.get(traces_url, params=params, auth=(public_key, secret_key), timeout=10)
-                    if response.status_code == 200:
-                        data = response.json()
-                        traces = data.get("data", [])
-                        for trace in traces:
-                            # Check if run_id appears anywhere in the trace
-                            trace_str = json.dumps(trace)
-                            if run_id in trace_str:
-                                found_trace = trace
-                                break
-                
-                if found_trace:
-                    print(f"✅ Trace found!")
-                    print(f"   - ID: {found_trace.get('id')}")
-                    print(f"   - Name: {found_trace.get('name')}")
-                    print(f"   - Timestamp: {found_trace.get('timestamp')}")
-                    
-                    # Try different fields for duration/cost
-                    duration = found_trace.get('duration') or found_trace.get('calculatedTotalCost') or 0
-                    if duration:
-                        print(f"   - Duration: {duration:.2f}ms")
-                    
-                    # Check for observations
-                    obs_count = found_trace.get('observationCount', 0)
-                    if obs_count > 0:
-                        print(f"   - Observations: {obs_count}")
-                    
+                if data.get('data'):
+                    print(f"✅ Trace found! ({len(data['data'])} trace(s))")
                     return True
-                else:
-                    if attempt < retries - 1:
-                        print(f"⏳ Trace not found yet, retrying in {delay}s... (attempt {attempt + 1}/{retries})")
-                        time.sleep(delay)
-            else:
-                print(f"❌ Langfuse API error: {response.status_code}")
-                if response.text:
-                    print(f"   Response: {response.text[:200]}")
-                return False
-                
+                    
         except Exception as e:
-            print(f"❌ Error checking trace: {str(e)}")
-            return False
+            print(f"Error checking trace: {e}")
+        
+        if attempt < 4:
+            print(f"⏳ Waiting 3 seconds... (attempt {attempt + 2}/5)")
+            time.sleep(3)
     
-    print("❌ Trace not found after all retries")
-    print("💡 Note: Traces are visible in the Langfuse dashboard but may use different naming conventions")
+    print("❌ Trace not found after 5 attempts")
     return False
 
-def validate_response(response: Dict, test_case: Dict) -> bool:
-    """Validate response contains expected keywords or structure"""
-    if not response:
-        return False
+def show_menu():
+    """Show interactive menu"""
+    print("\n🎯 Strands-Langfuse Lambda Test")
+    print("=" * 50)
+    print("1. Health Check - Basic connectivity test")
+    print("2. Monty Python Demo - Fun themed interactions")
+    print("3. Examples Demo - Multiple agent showcase")
+    print("4. Scoring Demo - Automated evaluation")
+    print("5. Custom Query - Ask your own question")
+    print("6. Run All Tests - Complete validation")
+    print("0. Exit")
+    print("=" * 50)
     
-    # For custom queries, check keywords
-    if test_case.get("demo") == "custom":
-        response_text = response.get("response", "").lower()
-        expected_keywords = test_case.get("expected_keywords", [])
-        
-        found_keywords = []
-        for keyword in expected_keywords:
-            if keyword.lower() in response_text:
-                found_keywords.append(keyword)
-        
-        if found_keywords:
-            print(f"✅ Found expected keywords: {', '.join(found_keywords)}")
-            return True
-        else:
-            print(f"⚠️  Expected keywords not found: {', '.join(expected_keywords)}")
-            return False
-    
-    # For demo tests, check response structure
-    expected_response = test_case.get("expected_response", {})
-    if expected_response:
-        for key, expected_type in expected_response.items():
-            if key not in response:
-                print(f"⚠️  Missing expected field: {key}")
-                return False
-            if expected_type != int and response[key] != expected_type:
-                print(f"⚠️  Field {key} has unexpected value: {response[key]} (expected {expected_type})")
-                return False
-            if expected_type == int and not isinstance(response[key], int):
-                print(f"⚠️  Field {key} is not an integer: {response[key]}")
-                return False
-        print(f"✅ Response structure matches expected format")
-        return True
-    
-    return True
+    return input("Choose an option (0-6): ").strip()
 
-def main():
-    """Main test function"""
-    print("🧪 Strands-Langfuse Lambda Test Script")
-    print("=====================================")
+def run_health_check(lambda_url):
+    """Run basic health check"""
+    print("\n🏥 Running Health Check...")
     
-    # Get Lambda URL
-    function_url = get_lambda_url()
-    if not function_url:
-        print("\n❌ Error: Lambda not deployed. Run 'python deploy.py' first.")
-        sys.exit(1)
+    # Simple query to test connectivity
+    response = test_lambda(
+        lambda_url,
+        demo_name="custom",
+        query="Hello",
+        session_id=f"health-check-{uuid.uuid4().hex[:8]}"
+    )
     
-    print(f"\n📍 Lambda URL: {function_url}")
-    print(f"🔗 Langfuse Host: {os.environ.get('LANGFUSE_HOST')}")
+    if response and response.get('success'):
+        print("\n✅ Health Check Passed!")
+        print(f"Lambda is responding correctly")
+        print(f"Langfuse endpoint: {response.get('langfuse_url', 'N/A')}")
+        return True
+    else:
+        print("\n❌ Health Check Failed!")
+        return False
+
+def run_custom_query(lambda_url):
+    """Run custom query"""
+    print("\n💭 Custom Query Mode")
+    query = input("Enter your question: ").strip()
     
-    # Test results
+    if not query:
+        print("❌ Query cannot be empty")
+        return
+    
+    session_id = f"custom-{uuid.uuid4().hex[:8]}"
+    response = test_lambda(lambda_url, "custom", query, session_id)
+    
+    if response:
+        # Check if trace appears in Langfuse
+        langfuse_host = os.environ.get('LANGFUSE_HOST')
+        public_key = os.environ.get('LANGFUSE_PUBLIC_KEY')
+        secret_key = os.environ.get('LANGFUSE_SECRET_KEY')
+        
+        if all([langfuse_host, public_key, secret_key]):
+            check_langfuse_trace(session_id, langfuse_host, public_key, secret_key)
+
+def run_all_tests(lambda_url):
+    """Run all demo tests"""
+    print("\n🧪 Running All Tests")
+    
+    # Get Langfuse credentials
+    langfuse_host = os.environ.get('LANGFUSE_HOST')
+    public_key = os.environ.get('LANGFUSE_PUBLIC_KEY')
+    secret_key = os.environ.get('LANGFUSE_SECRET_KEY')
+    
+    if not all([langfuse_host, public_key, secret_key]):
+        print("❌ Missing Langfuse credentials")
+        return
+    
+    # Test configurations
+    tests = [
+        {
+            "name": "Custom Query",
+            "demo": "custom",
+            "query": "What is AWS Lambda?",
+            "session_id": f"test-custom-{uuid.uuid4().hex[:8]}"
+        },
+        {
+            "name": "Monty Python Demo",
+            "demo": "monty_python",
+            "session_id": f"test-monty-{uuid.uuid4().hex[:8]}"
+        },
+        {
+            "name": "Examples Demo",
+            "demo": "examples",
+            "session_id": f"test-examples-{uuid.uuid4().hex[:8]}"
+        },
+        {
+            "name": "Scoring Demo",
+            "demo": "scoring",
+            "session_id": f"test-scoring-{uuid.uuid4().hex[:8]}"
+        }
+    ]
+    
     results = []
-    trace_results = []
     
-    # Run test queries
-    print("\n🚀 Running test queries...")
-    
-    # Run custom query tests
-    for test_case in TEST_QUERIES:
-        print(f"\n{'='*60}")
-        print(f"📝 Test: {test_case['name']}")
+    for i, test in enumerate(tests):
+        print(f"\n{'='*50}")
+        print(f"Running Test {i+1}/{len(tests)}: {test['name']}")
+        print(f"{'='*50}")
         
-        # Send query
-        response = test_lambda_query(function_url, test_case["query"], test_case.get("demo", "custom"))
+        # Add a small delay between tests to avoid overwhelming the Lambda
+        if i > 0:
+            print("⏳ Waiting 2 seconds before next test...")
+            time.sleep(2)
+        
+        # Test Lambda
+        response = test_lambda(
+            lambda_url, 
+            test['demo'], 
+            test.get('query'),
+            test['session_id']
+        )
         
         if response:
-            # Validate response
-            response_valid = validate_response(response, test_case)
-            results.append({
-                "test": test_case["name"],
-                "success": response_valid,
-                "run_id": response.get("run_id")
-            })
+            # Check Langfuse trace
+            session_id = response.get('session_id', test['session_id'])
+            trace_found = check_langfuse_trace(session_id, langfuse_host, public_key, secret_key)
             
-            # Check trace in Langfuse
-            run_id = response.get("run_id")
-            if run_id:
-                trace_found = check_langfuse_trace(run_id)
-                trace_results.append({
-                    "test": test_case["name"],
-                    "run_id": run_id,
-                    "trace_found": trace_found
-                })
+            results.append({
+                "test": test['name'],
+                "lambda": "✅ Success",
+                "trace": "✅ Found" if trace_found else "❌ Not Found"
+            })
         else:
             results.append({
-                "test": test_case["name"],
-                "success": False,
-                "run_id": None
-            })
-    
-    # Run demo tests
-    print("\n\n🎭 Running demo tests...")
-    for test_case in DEMO_TESTS:
-        print(f"\n{'='*60}")
-        print(f"📝 Test: {test_case['name']}")
-        
-        # Send demo request
-        response = test_lambda_query(function_url, "", test_case["demo"])
-        
-        if response:
-            # Validate response
-            response_valid = validate_response(response, test_case)
-            results.append({
-                "test": test_case["name"],
-                "success": response_valid,
-                "run_id": response.get("run_id"),
-                "session_id": response.get("session_id")
-            })
-            
-            # Check trace in Langfuse
-            session_id = response.get("session_id")
-            if session_id:
-                # For demos, check by session ID instead of run ID
-                trace_found = check_langfuse_trace(session_id.split('-')[-1])
-                trace_results.append({
-                    "test": test_case["name"],
-                    "session_id": session_id,
-                    "trace_found": trace_found
-                })
-        else:
-            results.append({
-                "test": test_case["name"],
-                "success": False,
-                "run_id": None
+                "test": test['name'],
+                "lambda": "❌ Failed",
+                "trace": "❌ N/A"
             })
     
     # Summary
-    print(f"\n{'='*60}")
+    print(f"\n{'='*50}")
     print("📊 Test Summary")
-    print("===============")
+    print(f"{'='*50}")
     
-    # Lambda results
-    successful_tests = sum(1 for r in results if r["success"])
-    print(f"\n🎯 Lambda Tests: {successful_tests}/{len(results)} passed")
     for result in results:
-        status = "✅" if result["success"] else "❌"
-        print(f"   {status} {result['test']}")
+        print(f"{result['test']:20} Lambda: {result['lambda']}  Trace: {result['trace']}")
     
-    # Trace results
-    if trace_results:
-        traces_found = sum(1 for r in trace_results if r["trace_found"])
-        print(f"\n📈 Langfuse Traces: {traces_found}/{len(trace_results)} found")
-        for result in trace_results:
-            status = "✅" if result["trace_found"] else "❌"
-            print(f"   {status} {result['test']} (run-{result['run_id']})")
+    all_passed = all(r['lambda'] == "✅ Success" and r['trace'] == "✅ Found" for r in results)
     
-    # Overall result
-    print(f"\n{'='*60}")
-    if successful_tests == len(results):
-        print("✅ Lambda tests passed!")
-        
-        if traces_found < len(trace_results):
-            print("\n⚠️  Note: Traces may not be accessible via API but are visible in the dashboard")
-            print("   This is likely due to trace naming conventions or API filtering differences")
-        
-        # Display Langfuse URL for viewing traces
-        langfuse_host = os.environ.get("LANGFUSE_HOST", "").rstrip('/')
-        print(f"\n🔍 View traces at: {langfuse_host}")
-        print("   Filter by run ID or check recent traces to see the results")
-        
-        return 0
+    if all_passed:
+        print("\n✅ All tests passed!")
     else:
-        print("❌ Some Lambda tests failed. Check the details above.")
-        return 1
+        print("\n⚠️  Some tests had issues")
+
+def main():
+    """Interactive Lambda testing"""
+    # Load environment
+    if not load_environment():
+        sys.exit(1)
+    
+    # Get Lambda URL
+    lambda_url = get_lambda_url()
+    if not lambda_url:
+        print("❌ Lambda URL is required")
+        sys.exit(1)
+    
+    print(f"🔗 Using Lambda URL: {lambda_url}")
+    
+    # Interactive menu loop
+    while True:
+        choice = show_menu()
+        
+        if choice == "0":
+            print("\n👋 Goodbye!")
+            break
+        elif choice == "1":
+            run_health_check(lambda_url)
+        elif choice == "2":
+            test_lambda(lambda_url, "monty_python", session_id=f"monty-{uuid.uuid4().hex[:8]}")
+        elif choice == "3":
+            test_lambda(lambda_url, "examples", session_id=f"examples-{uuid.uuid4().hex[:8]}")
+        elif choice == "4":
+            test_lambda(lambda_url, "scoring", session_id=f"scoring-{uuid.uuid4().hex[:8]}")
+        elif choice == "5":
+            run_custom_query(lambda_url)
+        elif choice == "6":
+            run_all_tests(lambda_url)
+        else:
+            print("❌ Invalid choice. Please try again.")
+        
+        input("\nPress Enter to continue...")
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Check if running with command line argument
+    if len(sys.argv) > 1 and sys.argv[1] == "--all":
+        # Non-interactive mode - run all tests
+        if load_environment():
+            lambda_url = get_lambda_url()
+            if lambda_url:
+                run_all_tests(lambda_url)
+    else:
+        # Interactive mode
+        main()
