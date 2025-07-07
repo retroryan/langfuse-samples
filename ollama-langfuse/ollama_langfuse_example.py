@@ -13,6 +13,7 @@ Prerequisites:
 import os
 import sys
 from dotenv import load_dotenv
+from langfuse import get_client
 # The Langfuse OpenAI wrapper automatically intercepts all OpenAI API calls
 # and creates traces in Langfuse without changing your code structure
 from langfuse.openai import OpenAI
@@ -125,7 +126,6 @@ def main(session_id=None):
     # The Langfuse wrapper sends traces asynchronously in the background
     # For short-lived scripts, we need to flush the queue before exiting
     # Otherwise, the script might terminate before traces are sent
-    from langfuse import get_client
     langfuse = get_client()
     langfuse.flush()
 

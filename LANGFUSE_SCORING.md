@@ -1,261 +1,81 @@
-# Langfuse Scoring Patterns with AWS Strands Agents
+# Langfuse Scoring with AWS Strands Agents
 
-This document analyzes Langfuse scoring implementations across official Strands documentation, sample code, and practical integration patterns, providing a comprehensive guide for implementing evaluation and scoring in Strands + Langfuse applications.
+A comprehensive guide for implementing evaluation and scoring in Strands + Langfuse applications, based on official patterns and practical integration examples.
 
 ## Overview
 
-Langfuse scoring enables automated evaluation of LLM responses through both simple test-driven approaches and sophisticated evaluation frameworks like RAGAS. This analysis covers two main implementation patterns found in the codebase:
+Langfuse scoring enables automated evaluation of LLM responses through various approaches:
+- Simple test-driven evaluation
+- Sophisticated frameworks like RAGAS
+- Custom evaluation metrics
 
-1. **Official Strands Pattern** - Production-ready evaluation with RAGAS integration
-2. **Sample Integration Pattern** - Test-driven scoring with deterministic trace IDs
+Two main implementation patterns:
+1. **Production Pattern** - Fetch-and-score with RAGAS integration
+2. **Development Pattern** - Test-driven scoring with deterministic trace IDs
 
-## Official Strands Scoring Pattern
+## Quick Start
 
-### Documentation References
-
-The primary official documentation for Langfuse scoring with Strands is found in:
-
-1. **`/Users/ryanknight/projects/aws/strands-official/LANGFUSE_IMPLEMENTATION_GUIDE.md`** (Lines 512-637)
-   - Comprehensive evaluation and scoring section
-   - RAGAS integration examples
-   - Production deployment patterns
-
-2. **`/Users/ryanknight/projects/aws/strands-official/samples/01-tutorials/01-fundamentals/08-observability-and-evaluation/`**
-   - `Observability-and-Evaluation-sample.ipynb` - Complete Jupyter notebook tutorial
-   - `strands_eval.py` - Production-ready Python implementation
-
-### Core Implementation Pattern
-
-The official pattern uses **Langfuse SDK scoring** with auto-generated trace IDs:
+### Environment Setup
 
 ```python
-# From strands-official/samples/.../strands_eval.py
+import os
+import base64
+from dotenv import load_dotenv
+
+# CRITICAL: Load environment variables FIRST
+load_dotenv()
+
+# Configure Langfuse authentication
+LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY")
+LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
+LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+
+# Create auth token for OTEL
+auth_token = base64.b64encode(f"{LANGFUSE_PUBLIC_KEY}:{LANGFUSE_SECRET_KEY}".encode()).decode()
+
+# CRITICAL: Set OTEL environment variables BEFORE importing Strands
+os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"{LANGFUSE_HOST}/api/public/otel/v1/traces"
+os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = f"Authorization=Basic {auth_token}"
+os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = "http/protobuf"
+
+# NOW import Strands after setting environment variables
+from strands import Agent
+from strands.telemetry import StrandsTelemetry
+
+# Initialize telemetry
+telemetry = StrandsTelemetry()
+telemetry.setup_otlp_exporter()
+```
+
+### Basic Scoring Example
+
+```python
 from langfuse import Langfuse
 
-class LangfuseEvaluator:
-    def __init__(self, public_key: str, secret_key: str):
-        self.langfuse = Langfuse(
-            public_key=public_key,
-            secret_key=secret_key
-        )
-    
-    def evaluate_agent_response(self, trace_id: str, response: str, expected: str = None):
-        """Score agent response quality"""
-        # Wait for trace to be indexed
-        time.sleep(2)
-        
-        # Calculate scores
-        scores = []
-        
-        # Accuracy score (if expected output provided)
-        if expected:
-            accuracy = 1.0 if response.strip() == expected.strip() else 0.0
-            scores.append({
-                "name": "accuracy",
-                "value": accuracy,
-                "comment": f"Expected: {expected[:50]}..."
-            })
-        
-        # Submit scores using create_score() method
-        for score in scores:
-            self.langfuse.create_score(  # Note: create_score, not score
-                trace_id=trace_id,
-                name=score["name"],
-                value=score["value"],
-                comment=score["comment"]
-            )
-```
-
-### RAGAS Integration
-
-The official examples demonstrate sophisticated evaluation using RAGAS:
-
-```python
-# From LANGFUSE_IMPLEMENTATION_GUIDE.md (Lines 584-637)
-from ragas import evaluate
-from ragas.metrics import faithfulness, answer_relevancy
-import pandas as pd
-
-class RAGASLangfuseIntegration:
-    def evaluate_rag_pipeline(self, agent, test_questions: list):
-        """Evaluate RAG pipeline using RAGAS"""
-        results = []
-        
-        for question in test_questions:
-            # Execute agent
-            response = agent(question)
-            
-            # Prepare data for RAGAS
-            data = {
-                'question': [question],
-                'answer': [str(response)],
-                'contexts': [[]]  # Extract from agent if using RAG
-            }
-            
-            # Run RAGAS evaluation
-            dataset = pd.DataFrame(data)
-            scores = evaluate(
-                dataset,
-                metrics=[faithfulness, answer_relevancy]
-            )
-            
-            # Push scores to Langfuse
-            trace_id = self._get_trace_id_from_context()
-            
-            for metric, value in scores.items():
-                self.langfuse.create_score(
-                    trace_id=trace_id,
-                    name=f"ragas_{metric}",
-                    value=value,
-                    comment=f"RAGAS {metric} score"
-                )
-```
-
-### Trace Management Strategy
-
-Official Strands examples use **fetch-and-score** approach:
-
-```python
-# Fetch traces from Langfuse by tags/filters
-traces = langfuse_client.api.trace.list(
-    tags=["Agent-SDK"],
-    page=1,
-    page_size=50
+langfuse_client = Langfuse(
+    public_key=LANGFUSE_PUBLIC_KEY,
+    secret_key=LANGFUSE_SECRET_KEY
 )
 
-# Process and score traces
-for trace in traces:
-    # Extract data for evaluation
-    processed_data = process_traces([trace])
-    
-    # Score using auto-generated trace ID
-    langfuse_client.create_score(
-        trace_id=trace.id,  # Uses Langfuse's auto-generated ID
-        name="evaluation_metric",
-        value=metric_value
-    )
+# Execute agent and get response
+response = agent("What is the capital of France?")
+
+# Wait for trace to be indexed
+time.sleep(2)
+
+# Find trace and score
+trace = langfuse_client.get_traces(limit=1).data[0]
+langfuse_client.create_score(
+    trace_id=trace.id,
+    name="accuracy",
+    value=1.0 if "Paris" in response else 0.0,
+    data_type="NUMERIC"
+)
 ```
 
-## Sample Integration Scoring Pattern
+## Scoring API Reference
 
-### Documentation References
-
-The sample integration pattern is documented in:
-
-1. **`/Users/ryanknight/projects/aws/langfuse-samples/strands-langfuse/KEY_STRANDS_LANGFUSE.md`** (Lines 303-371)
-   - Deterministic trace ID generation with `Langfuse.create_trace_id()`
-   - Hybrid OTEL + SDK scoring approach
-
-2. **`/Users/ryanknight/projects/aws/langfuse-samples/strands-langfuse/demos/scoring.py`** (Lines 275-508)
-   - Batch scoring implementation
-   - Test-driven evaluation patterns
-
-### Core Implementation Pattern
-
-The sample pattern uses **batch scoring** with auto-generated trace IDs:
-
-```python
-# From langfuse-samples/strands-langfuse/demos/scoring.py (Lines 431-498)
-
-# Batch Scoring Phase
-# NOTE: We perform scoring as a separate batch operation because:
-# 1. Strands uses OTEL telemetry which generates trace IDs automatically
-# 2. We cannot control or predict these trace IDs during agent execution
-# 3. Traces need time to be processed and indexed in Langfuse
-# 4. This approach ensures higher success rate for attaching scores
-
-print("📊 BATCH SCORING PHASE")
-time.sleep(10)  # Wait for traces to be processed
-
-scores_sent = 0
-scores_failed = 0
-
-for i, result in enumerate(results):
-    if result["score"] is None:  # Skip error results
-        continue
-        
-    print(f"🎯 Scoring test {i+1}/{len(results)}: {result['test_case']}")
-    
-    # Find the trace for this test
-    trace_id = find_trace_for_test(session_id, result["test_case"])
-    
-    if trace_id:
-        result["trace_id"] = trace_id
-        
-        # Score the trace in Langfuse
-        try:
-            # Automated scoring
-            langfuse_client.create_score(
-                trace_id=trace_id,
-                name=f"automated_{result['method']}",
-                value=result["score"],
-                comment=result['reasoning'],
-                data_type="NUMERIC"
-            )
-            
-            # Category score
-            category_score = "passed" if result["score"] >= 0.8 else "partial" if result["score"] >= 0.5 else "failed"
-            langfuse_client.create_score(
-                trace_id=trace_id,
-                name="test_result",
-                value=category_score,
-                data_type="CATEGORICAL"
-            )
-            
-            scores_sent += 1
-            print(f"   ✅ Scores sent successfully")
-            
-        except Exception as e:
-            print(f"   ⚠️  Failed to send score: {str(e)}")
-            scores_failed += 1
-```
-
-### Deterministic Trace IDs (Alternative Approach)
-
-The samples also demonstrate deterministic trace ID generation for controlled scoring:
-
-```python
-# From langfuse-samples/ollama-langfuse/ollama_scoring_demo.py (Lines 202-272)
-
-def generate_trace_id(session_id: str, test_case_name: str) -> str:
-    """Generate a deterministic trace ID using Langfuse v3 API
-    
-    This uses Langfuse SDK v3's built-in method which ensures:
-    - W3C Trace Context compliance (32 hex characters)
-    - Deterministic generation from the same seed
-    - Proper format for OpenTelemetry compatibility
-    """
-    # Create a deterministic seed from session and test case
-    seed = f"{session_id}-{test_case_name}"
-    # Use Langfuse's built-in method for W3C compliant trace IDs
-    return Langfuse.create_trace_id(seed=seed)
-
-# Usage with span context for controlled trace IDs
-langfuse = get_client()
-
-# Create a span with our custom trace ID
-with langfuse.start_as_current_span(
-    name=f"scoring-{test_case['name']}",
-    trace_context={"trace_id": trace_id}
-) as span:
-    # Inside the span context, the OpenAI wrapper will attach
-    # this call to our span instead of creating a new trace
-    response = client.chat.completions.create(...)
-    
-    # Score immediately using span methods
-    span.score_trace(
-        name=f"automated_{test_case['scoring_method']}",
-        value=score_value,
-        comment=score_result['reasoning'],
-        data_type="NUMERIC"
-    )
-```
-
-## Scoring API Methods Comparison
-
-### Langfuse SDK Methods
-
-Both patterns use the same underlying Langfuse SDK scoring API:
+### Core Methods
 
 ```python
 # Method 1: Direct client scoring (most common)
@@ -268,15 +88,16 @@ langfuse_client.create_score(
 )
 
 # Method 2: Span-based scoring (Langfuse v3 only)
-span.score_trace(
-    name="metric_name",
-    value=score_value,
-    comment="Optional explanation",
-    data_type="NUMERIC"
-)
+with langfuse.start_as_current_span(name="evaluation") as span:
+    # Execute operations
+    span.score_trace(
+        name="metric_name",
+        value=score_value,
+        comment="Optional explanation"
+    )
 ```
 
-### Data Types and Values
+### Score Types
 
 ```python
 # Numeric scores (0.0 to 1.0)
@@ -304,122 +125,177 @@ langfuse_client.create_score(
 )
 ```
 
-## Implementation Patterns Comparison
+## Implementation Patterns
 
-| Aspect | Official Strands | Sample Integration |
-|--------|------------------|-------------------|
-| **Scoring Method** | `langfuse_client.create_score()` | `langfuse_client.create_score()` |
-| **Trace ID Source** | Auto-generated (fetch from Langfuse) | Auto-generated + Deterministic options |
-| **Timing** | Batch processing post-execution | Batch + Immediate options |
-| **Evaluation Framework** | RAGAS + Custom metrics | Simple test cases |
-| **Use Case** | Production evaluation pipelines | Testing and development |
-| **Complexity** | High (multi-metric evaluation) | Low-Medium (focused testing) |
+### Pattern 1: Production Evaluation (Batch Scoring)
 
-## Best Practices from Both Patterns
-
-### 1. Environment Setup (Critical)
+Best for production pipelines, historical analysis, and complex evaluations.
 
 ```python
-# From strands-official/LANGFUSE_IMPLEMENTATION_GUIDE.md (Lines 79-114)
-import os
-import base64
-from dotenv import load_dotenv
-
-# CRITICAL: Load environment variables FIRST
-load_dotenv()
-
-# Configure Langfuse authentication
-LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY")
-LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
-LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
-
-# Create auth token for OTEL authentication
-auth_token = base64.b64encode(f"{LANGFUSE_PUBLIC_KEY}:{LANGFUSE_SECRET_KEY}".encode()).decode()
-
-# CRITICAL: Set OTEL environment variables BEFORE importing Strands
-os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"{LANGFUSE_HOST}/api/public/otel/v1/traces"
-os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = f"Authorization=Basic {auth_token}"
-os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = "http/protobuf"
-
-# NOW import Strands after setting environment variables
-from strands import Agent
-from strands.telemetry import StrandsTelemetry
+class ProductionEvaluator:
+    def __init__(self, langfuse_client):
+        self.langfuse = langfuse_client
+    
+    def evaluate_batch(self, test_cases):
+        # Phase 1: Execute all tests
+        results = []
+        for test in test_cases:
+            response = agent(test["prompt"])
+            results.append({
+                "test": test,
+                "response": response,
+                "timestamp": datetime.now()
+            })
+        
+        # Phase 2: Wait for trace indexing
+        time.sleep(10)
+        
+        # Phase 3: Fetch and score traces
+        traces = self.langfuse.get_traces(
+            tags=["production"],
+            limit=len(test_cases)
+        )
+        
+        for trace in traces.data:
+            # Match trace to test case
+            test_result = self._match_trace_to_result(trace, results)
+            if test_result:
+                # Calculate and submit scores
+                score = self._evaluate(test_result["response"], test_result["test"]["expected"])
+                self.langfuse.create_score(
+                    trace_id=trace.id,
+                    name="accuracy",
+                    value=score
+                )
 ```
 
-### 2. Telemetry Initialization
+### Pattern 2: Development Testing (Deterministic IDs)
+
+Best for automated testing, CI/CD, and development workflows.
 
 ```python
-# CRITICAL: Initialize telemetry explicitly
-telemetry = StrandsTelemetry()
-telemetry.setup_otlp_exporter()
-```
+def generate_trace_id(session_id: str, test_name: str) -> str:
+    """Generate deterministic trace ID for testing"""
+    seed = f"{session_id}-{test_name}"
+    return Langfuse.create_trace_id(seed=seed)
 
-### 3. Scoring Timing Strategies
+# Use deterministic trace IDs for immediate scoring
+trace_id = generate_trace_id(session_id, test_case["name"])
 
-#### Immediate Scoring (v3 Span Context)
-```python
-# From ollama-langfuse samples
-with langfuse.start_as_current_span(name="evaluation", trace_context={"trace_id": trace_id}) as span:
-    response = agent(prompt)
-    score = evaluate_response(response)
-    span.score_trace(name="quality", value=score)
-```
-
-#### Batch Scoring (Production Pattern)
-```python
-# From strands-langfuse samples
-# 1. Execute all agents first
-results = []
-for test_case in test_cases:
+with langfuse.start_as_current_span(
+    name=f"test-{test_case['name']}",
+    trace_context={"trace_id": trace_id}
+) as span:
     response = agent(test_case["prompt"])
-    results.append({"response": response, "test": test_case})
-
-# 2. Wait for traces to be indexed
-time.sleep(10)
-
-# 3. Find and score all traces
-for result in results:
-    trace_id = find_trace_for_test(session_id, result["test"]["name"])
-    if trace_id:
-        langfuse_client.create_score(trace_id=trace_id, ...)
-```
-
-### 4. Error Handling
-
-```python
-# From both patterns
-try:
-    langfuse_client.create_score(
-        trace_id=trace_id,
-        name="metric_name",
-        value=score_value
+    score = evaluate_response(response, test_case["expected"])
+    
+    # Score immediately
+    span.score_trace(
+        name="test_accuracy",
+        value=score,
+        data_type="NUMERIC"
     )
-    print(f"✅ Score sent successfully")
-except Exception as e:
-    print(f"⚠️ Failed to send score: {str(e)}")
-    # Log error but continue processing
 ```
 
-## Production Deployment Considerations
+## Advanced Evaluation
 
-### 1. Lambda Deployment Pattern
+### RAGAS Integration
 
 ```python
-# From strands-official/LANGFUSE_IMPLEMENTATION_GUIDE.md (Lines 641-728)
+from ragas import evaluate
+from ragas.metrics import faithfulness, answer_relevancy
+import pandas as pd
+
+def evaluate_with_ragas(agent, test_questions):
+    results = []
+    
+    for question in test_questions:
+        # Execute agent
+        response = agent(question)
+        
+        # Prepare RAGAS dataset
+        data = {
+            'question': [question],
+            'answer': [str(response)],
+            'contexts': [[]]  # Add contexts if using RAG
+        }
+        
+        # Evaluate with RAGAS
+        dataset = pd.DataFrame(data)
+        scores = evaluate(
+            dataset,
+            metrics=[faithfulness, answer_relevancy]
+        )
+        
+        # Submit scores to Langfuse
+        trace_id = get_latest_trace_id()
+        for metric, value in scores.items():
+            langfuse_client.create_score(
+                trace_id=trace_id,
+                name=f"ragas_{metric}",
+                value=value
+            )
+```
+
+### Custom Evaluation Functions
+
+```python
+def score_exact_match(response: str, expected: str) -> Dict[str, Any]:
+    """Score based on exact string match"""
+    if expected.lower() in response.lower():
+        return {"score": 1.0, "reasoning": "Exact match found"}
+    return {"score": 0.0, "reasoning": "No match found"}
+
+def score_keyword_match(response: str, keywords: List[str]) -> Dict[str, Any]:
+    """Score based on keyword presence"""
+    found = [kw for kw in keywords if kw.lower() in response.lower()]
+    score = len(found) / len(keywords) if keywords else 0.0
+    return {
+        "score": score,
+        "reasoning": f"Found {len(found)}/{len(keywords)} keywords"
+    }
+
+def score_length_constraint(response: str, min_words: int = 10) -> Dict[str, Any]:
+    """Score based on response length"""
+    word_count = len(response.split())
+    if word_count >= min_words:
+        return {"score": 1.0, "reasoning": f"Response has {word_count} words"}
+    return {
+        "score": word_count / min_words,
+        "reasoning": f"Response too short: {word_count}/{min_words} words"
+    }
+```
+
+## Production Deployment
+
+### Lambda Handler Example
+
+```python
 def lambda_handler(event, context):
-    """Lambda handler with Langfuse tracing and scoring"""
+    """Lambda with integrated scoring"""
     try:
         # Execute agent
+        prompt = event["prompt"]
+        expected = event.get("expected_answer")
+        
         result = agent(prompt)
         
         # Log metrics
         metrics.add_metric(
             name="TokensUsed",
-            value=result.metrics.accumulated_usage['totalTokens'],
-            unit=MetricUnit.Count
+            value=result.metrics.accumulated_usage['totalTokens']
         )
         
-        # Score could be added here or via separate evaluation pipeline
+        # Schedule scoring (async)
+        if expected:
+            sqs.send_message(
+                QueueUrl=SCORING_QUEUE_URL,
+                MessageBody=json.dumps({
+                    "trace_id": context.request_id,
+                    "response": str(result),
+                    "expected": expected
+                })
+            )
         
         return {
             'statusCode': 200,
@@ -433,132 +309,60 @@ def lambda_handler(event, context):
         return {'statusCode': 500, 'body': json.dumps({'error': str(e)})}
 ```
 
-### 2. Multi-Region Configuration
+### Multi-Region Configuration
 
 ```python
-# From strands-official/LANGFUSE_IMPLEMENTATION_GUIDE.md (Lines 781-821)
-class MultiRegionLangfuseConfig:
+class MultiRegionConfig:
     ENDPOINTS = {
         "us-east-1": "https://us.cloud.langfuse.com/api/public/otel/v1/traces",
-        "eu-west-1": "https://cloud.langfuse.com/api/public/otel/v1/traces",
+        "eu-west-1": "https://eu.cloud.langfuse.com/api/public/otel/v1/traces",
     }
     
     @classmethod
-    def configure_for_region(cls, aws_region: str, public_key: str, secret_key: str):
-        endpoint = cls.ENDPOINTS.get(aws_region, cls.ENDPOINTS["us-east-1"])
-        auth_token = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
+    def configure(cls, region: str, public_key: str, secret_key: str):
+        endpoint = cls.ENDPOINTS.get(region, cls.ENDPOINTS["us-east-1"])
+        auth = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
+        
         os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = endpoint
-        os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = f"Authorization=Basic {auth_token}"
-```
-
-## Evaluation Frameworks Integration
-
-### RAGAS Metrics (Official Pattern)
-
-```python
-# From strands-official examples
-from ragas.metrics import (
-    context_relevance,
-    response_groundedness,
-    AspectCritic,
-    RubricsScore
-)
-
-# Context relevance evaluation
-context_relevance_scores = evaluate(
-    dataset,
-    metrics=[context_relevance]
-)
-
-# Push to Langfuse
-for trace_id, score in context_relevance_scores.items():
-    langfuse_client.create_score(
-        trace_id=trace_id,
-        name="rag_context_relevance",
-        value=score
-    )
-```
-
-### Custom Evaluation Functions (Sample Pattern)
-
-```python
-# From langfuse-samples/strands-langfuse/demos/scoring.py (Lines 124-199)
-def score_exact_match(response: str, expected: str) -> Dict[str, Any]:
-    """Score based on exact string match"""
-    response_clean = response.strip().lower()
-    expected_clean = expected.strip().lower()
-    
-    if expected_clean in response_clean:
-        return {
-            "score": 1.0,
-            "reasoning": f"Response contains expected answer: '{expected}'"
-        }
-    else:
-        return {
-            "score": 0.0,
-            "reasoning": f"Response does not contain expected answer: '{expected}'"
-        }
-
-def score_keyword_match(response: str, required_keywords: List[str]) -> Dict[str, Any]:
-    """Score based on presence of required keywords"""
-    response_lower = response.lower()
-    found_keywords = [kw for kw in required_keywords if kw.lower() in response_lower]
-    
-    score = len(found_keywords) / len(required_keywords) if required_keywords else 0.0
-    
-    return {
-        "score": score,
-        "reasoning": f"Found {len(found_keywords)}/{len(required_keywords)} keywords: {found_keywords}"
-    }
+        os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = f"Authorization=Basic {auth}"
 ```
 
 ## Common Issues and Solutions
 
-### 1. Trace Not Found Errors
+### Issue 1: Trace Not Found
 
-**Problem**: Scoring fails because trace ID cannot be found
-**Solution**: Add retry logic and wait time
+**Problem**: Scoring fails with "trace not found" error
 
+**Solution**: Implement retry logic with exponential backoff
 ```python
-# From langfuse-samples pattern
-def find_trace_with_retry(session_id: str, test_name: str, max_retries: int = 3) -> str:
+def find_trace_with_retry(session_id: str, max_retries: int = 3):
     for attempt in range(max_retries):
-        traces = langfuse_client.get_traces(
-            session_id=session_id,
-            limit=50
-        )
-        
-        for trace in traces.data:
-            if test_name in str(trace.metadata):
-                return trace.id
-        
-        if attempt < max_retries - 1:
-            time.sleep(2)  # Wait before retry
-    
+        traces = langfuse_client.get_traces(session_id=session_id)
+        if traces.data:
+            return traces.data[0].id
+        time.sleep(2 ** attempt)  # Exponential backoff
     return None
 ```
 
-### 2. OTEL Configuration Issues
+### Issue 2: OTEL Configuration
 
 **Problem**: No traces appear in Langfuse
-**Solution**: Use correct endpoint and initialization order
 
+**Solution**: Use correct signal-specific endpoint
 ```python
-# CRITICAL: Must use signal-specific endpoint
+# ✅ CORRECT - Signal-specific endpoint
 os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"{host}/api/public/otel/v1/traces"
-# NOT: OTEL_EXPORTER_OTLP_ENDPOINT = f"{host}/api/public/otel"
 
-# CRITICAL: Set environment before imports
-from strands import Agent  # Import AFTER setting environment
+# ❌ WRONG - Generic endpoint
+os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = f"{host}/api/public/otel"
 ```
 
-### 3. TracerProvider Warnings
+### Issue 3: TracerProvider Warnings
 
 **Problem**: "Overriding of current TracerProvider is not allowed"
-**Solution**: Initialize telemetry once at application level
 
+**Solution**: Use singleton pattern for telemetry
 ```python
-# From strands-official/LANGFUSE_IMPLEMENTATION_GUIDE.md (Lines 199-220)
 class TelemetryManager:
     _instance = None
     _initialized = False
@@ -573,40 +377,35 @@ class TelemetryManager:
             self.telemetry = StrandsTelemetry()
             self.telemetry.setup_otlp_exporter()
             self._initialized = True
-        return self.telemetry
 ```
 
-## Summary and Recommendations
+## Best Practices Summary
 
-### When to Use Each Pattern
+1. **Environment Setup**: Always configure OTEL environment variables before importing Strands
+2. **Timing**: Allow 2-10 seconds for trace indexing before scoring
+3. **Error Handling**: Implement retry logic for all scoring operations
+4. **Trace Management**: Use session IDs and tags for better trace organization
+5. **Score Types**: Use NUMERIC for quantitative metrics, CATEGORICAL for qualitative assessments
+6. **Batch Processing**: For production, batch execute then batch score
+7. **Development Testing**: Use deterministic trace IDs for predictable testing
 
-**Official Strands Pattern** (Fetch-and-Score):
-- ✅ Production evaluation pipelines
-- ✅ RAGAS or complex evaluation frameworks
-- ✅ Batch processing of historical data
-- ✅ Multi-metric evaluation suites
+## Pattern Selection Guide
 
-**Sample Integration Pattern** (Deterministic + Batch):
-- ✅ Automated testing and CI/CD
-- ✅ Development and debugging
-- ✅ Simple pass/fail evaluation
-- ✅ Immediate feedback scenarios
+| Use Case | Recommended Pattern | Key Benefits |
+|----------|-------------------|--------------|
+| Production evaluation | Batch scoring | Reliability, scale |
+| CI/CD pipelines | Deterministic IDs | Predictability |
+| Real-time feedback | Span-based scoring | Low latency |
+| Complex metrics | RAGAS integration | Comprehensive evaluation |
+| A/B testing | Batch + tags | Easy comparison |
+| Development | Mixed approach | Flexibility |
 
-### Key Takeaways
+## Conclusion
 
-1. **Both patterns use identical scoring API**: `langfuse_client.create_score()`
-2. **No OTEL-native scoring**: Both rely on Langfuse SDK for scoring
-3. **Trace ID management differs**: Auto-generated vs. deterministic approaches
-4. **Environment setup is critical**: OTEL configuration must precede imports
-5. **Timing matters**: Batch scoring is more reliable for production
-6. **Error handling essential**: Always implement retry logic and graceful failures
+Successful Langfuse scoring implementation requires:
+- Proper environment configuration
+- Understanding of trace lifecycle
+- Appropriate pattern selection
+- Robust error handling
 
-### Recommended Implementation
-
-For most use cases, combine both approaches:
-- Use **deterministic trace IDs** for testing and development
-- Use **batch scoring** for production reliability
-- Implement **comprehensive error handling** and retry logic
-- Follow **official environment setup** patterns for consistency
-
-This hybrid approach provides the benefits of both patterns while avoiding their respective limitations.
+Start with the basic examples, then adapt patterns based on your specific use case and scale requirements.

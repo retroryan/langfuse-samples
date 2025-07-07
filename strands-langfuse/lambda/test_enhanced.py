@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """Test enhanced Lambda response"""
 import json
+import os
 import requests
 
-# Lambda URL
-url = "https://m7ck32to2nm4jca7mohcyxwaba0qvqfk.lambda-url.us-east-1.on.aws/"
+# Lambda URL from environment variable or default placeholder
+url = os.environ.get("LAMBDA_FUNCTION_URL", "YOUR_LAMBDA_FUNCTION_URL_HERE")
+
+if url == "YOUR_LAMBDA_FUNCTION_URL_HERE":
+    print("❌ Error: Please set the LAMBDA_FUNCTION_URL environment variable")
+    print("Example: export LAMBDA_FUNCTION_URL=https://your-function.lambda-url.region.on.aws/")
+    exit(1)
 
 # Test custom query
 print("Testing enhanced Lambda response...")
