@@ -49,8 +49,9 @@ Integration with AWS Strands agents and Bedrock models showcasing:
 - **AWS Bedrock integration** - Traces for Claude, Llama, and other Bedrock models
 - **Custom attributes** - User IDs, tags, and metadata in traces
 - **Automated scoring** - Response evaluation with multiple scoring methods
+- **Lambda deployment** - Includes Lambda function URL deployment to run demos in AWS against the Langfuse AWS deployment
 
-Run demos locally with Python or deploy as a Lambda function URL with the Langfuse AWS deployment.
+Run demos locally with Python or deploy as a Lambda function URL to integrate with your AWS-deployed Langfuse instance.
 
 ### [ollama-langfuse](ollama-langfuse/)
 Integration with local Ollama models demonstrating:
