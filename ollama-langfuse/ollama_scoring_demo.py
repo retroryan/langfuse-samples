@@ -121,7 +121,7 @@ def main(session_id=None):
     
     # Step 2: Let traces settle
     print("\n⏳ Waiting for traces to be created...")
-    time.sleep(2)
+    time.sleep(5)
     
     # Step 3: Score all responses at once
     print("\n📊 Scoring all responses...")
@@ -141,11 +141,11 @@ def main(session_id=None):
         # Find the trace by searching recent traces
         # In production, you might want to store trace IDs during creation
         try:
-            # Get recent traces for this session
-            traces = langfuse_client.client.trace.list(
-                session_id=session_id,
+            # Get recent traces for this session using v3 API
+            traces = langfuse_client.api.trace.list(
                 page=1,
-                page_size=10
+                limit=10,
+                session_id=session_id
             )
             
             # Find our trace by name
@@ -157,7 +157,7 @@ def main(session_id=None):
             
             if trace:
                 # Score the trace
-                langfuse_client.score(
+                langfuse_client.create_score(
                     trace_id=trace.id,
                     name="automated_evaluation",
                     value=score,

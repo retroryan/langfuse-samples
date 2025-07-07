@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 # This wrapper intercepts all API calls and automatically creates traces
 # Your code stays exactly the same - just change the import!
 from langfuse.openai import OpenAI
+from langfuse import get_client
 import time
 
 # Load environment variables
@@ -217,7 +218,6 @@ def main(session_id=None):
     # Langfuse uses an async background thread to send traces
     # This is efficient but means traces might not be sent immediately
     # flush() forces all pending traces to be sent before the script exits
-    from langfuse import get_client
     langfuse = get_client()  # Gets the singleton Langfuse client instance
     langfuse.flush()  # Blocks until all traces are sent
 

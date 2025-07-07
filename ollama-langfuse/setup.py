@@ -13,7 +13,6 @@ import os
 import sys
 import requests
 from typing import List, Dict, Optional
-import json
 from dotenv import load_dotenv, dotenv_values
 
 

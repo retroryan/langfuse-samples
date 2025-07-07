@@ -5,6 +5,7 @@
 # Project-specific files
 cloud.env
 scoring_results_*.json
+ollama-langfuse/simple_scoring_results_*.json
 
 # AWS CDK
 cdk.out/

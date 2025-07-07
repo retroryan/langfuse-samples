@@ -42,9 +42,6 @@ def run_command_with_progress(cmd, description="Processing"):
     spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
     spinner_idx = 0
     
-    # Track stack progress
-    stack_status = {}
-    
     def update_status():
         nonlocal spinner_idx
         while process.poll() is None:
