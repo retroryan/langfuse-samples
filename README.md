@@ -2,10 +2,13 @@
 
 This repository contains example integrations demonstrating how to use Langfuse observability with various LLM frameworks.
 
-## Python Setup
+## Prerequisites
 
-Install pyenv to manage Python versions:
+- Python 3.12.10 (managed via pyenv)
+- Docker (for running Langfuse locally)
+- AWS credentials (for strands-langfuse and langfuse-aws projects)
 
+### Install pyenv:
 ```bash
 # macOS (using Homebrew)
 brew install pyenv
@@ -14,53 +17,50 @@ brew install pyenv
 curl https://pyenv.run | bash
 ```
 
-Each project in this repository uses pyenv for Python version management and venv for package isolation. Navigate to the project directory and follow the setup instructions in each project's README.
+## Quick Start
 
-## Getting Started with Langfuse
+Get up and running with Langfuse observability in 5 minutes:
 
-First, you'll need a Langfuse instance running:
-
-### Local Setup (Recommended for Development)
+### 1. Start Langfuse Locally
 ```bash
-git clone https://github.com/langfuse/langfuse
-cd langfuse
-docker-compose up
+git clone https://github.com/langfuse/langfuse && cd langfuse && docker-compose up -d
 ```
-This will start Langfuse locally at http://localhost:3000
+Langfuse will be available at http://localhost:3000
 
-### AWS Deployment
+### 2. Try the Ollama Example (Simplest)
+```bash
+cd ollama-langfuse
+pyenv local 3.12.10
+pip install -r requirements.txt
+python ollama_langfuse_example.py
+```
 
-For simple testing of Langfuse on AWS (not for production), you can use the [langfuse-aws](langfuse-aws/) directory in this repository. This is a simplified deployment based on the comprehensive guide at https://github.com/aws-samples/deploy-langfuse-on-ecs-with-fargate/tree/main.
+### 3. View Your Traces
+Open http://localhost:3000 and see your LLM interactions being traced!
 
-The AWS deployment guide demonstrates how to deploy Langfuse on Amazon ECS with Fargate, providing a scalable, serverless container platform. It includes:
-- ECS Fargate for running Langfuse containers
-- RDS PostgreSQL for data persistence
-- Application Load Balancer for traffic distribution
-- VPC networking with proper security groups
-- CloudFormation/CDK templates for infrastructure as code
-
-**Note:** The deployment in this repository is simplified for testing purposes only. For production deployments, please refer to the full AWS guide linked above.
 
 ## Sample Projects
 
-### [strands-langfuse](strands-langfuse/)
-Integration with AWS Strands agents and Bedrock models showcasing:
-- **OpenTelemetry instrumentation** - Rich trace data via OTLP protocol
-- **AWS Bedrock integration** - Traces for Claude, Llama, and other Bedrock models
-- **Custom attributes** - User IDs, tags, and metadata in traces
-- **Automated scoring** - Response evaluation with multiple scoring methods
-- **Lambda deployment** - Includes Lambda function URL deployment to run demos in AWS against the Langfuse AWS deployment
-
-Run demos locally with Python or deploy as a Lambda function URL to integrate with your AWS-deployed Langfuse instance.
-
-### [ollama-langfuse](ollama-langfuse/)
+### [ollama-langfuse](ollama-langfuse/) - Simplest Starting Point
 Integration with local Ollama models demonstrating:
 - **OpenAI-compatible API wrapping** - Automatically traces all Ollama API calls
 - **Session tracking** - Groups related conversations together
-- **Deterministic trace IDs** - Reliable trace identification via metadata
 - **Local LLM observability** - Monitor performance of models running on your machine
 
-Run the basic demo to see simple question-answering traced in Langfuse, or try the Monty Python demo for multi-turn conversations with session tracking.
+### [strands-langfuse](strands-langfuse/) - Production-Ready AWS Integration
+Integration with AWS Strands agents and Bedrock models showcasing:
+- **OpenTelemetry instrumentation** - Rich trace data via OTLP protocol
+- **AWS Bedrock integration** - Traces for Claude, Llama, and other Bedrock models
+- **Automated scoring** - Response evaluation with multiple scoring methods
+- **Lambda deployment** - Deploy demos as Lambda functions
 
-### [langfuse-aws](langfuse-aws/)
-Infrastructure as code for deploying Langfuse on AWS (deployment scripts, not demos).
+### [langfuse-aws](langfuse-aws/) - Deploy Langfuse to AWS
+Infrastructure as code for deploying Langfuse on AWS (~$75-100/month for development/testing).
+
+## Advanced Setup
+
+### AWS Deployment
+For deploying Langfuse on AWS (not for production), see the [langfuse-aws](langfuse-aws/) directory. For production deployments, use the [official AWS deployment guide](https://github.com/aws-samples/deploy-langfuse-on-ecs-with-fargate/).
+
+### MCP Server Configuration
+When using Claude Code, you can configure MCP servers for enhanced development. See [MCP_SETUP.md](MCP_SETUP.md) for details.
