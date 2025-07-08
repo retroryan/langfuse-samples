@@ -25,9 +25,18 @@ Get up and running with Langfuse observability in 5 minutes:
 
 ### 1. Start Langfuse Locally
 ```bash
-git clone https://github.com/langfuse/langfuse && cd langfuse && docker-compose up -d
+git clone https://github.com/langfuse/langfuse
+cd langfuse
+docker-compose up -d
 ```
 Langfuse will be available at http://localhost:3000
+
+Login to Langfuse and create a new project. Generate API keys from the project settings, then configure your environment:
+
+```bash
+cp .env.example .env
+# Edit .env and add your Langfuse API keys
+```
 
 ### 2. Try the Ollama Example (Simplest)
 ```bash
