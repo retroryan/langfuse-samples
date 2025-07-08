@@ -2,6 +2,8 @@
 
 This repository contains example integrations demonstrating how to use [Langfuse](https://langfuse.com/) observability with various LLM frameworks.
 
+Langfuse is an open-source LLM engineering platform that provides deep visibility into your AI applications. With Langfuse traces, you can look under the covers to see exactly what's happening with your AI agents, LLM calls, and complex workflows. Each trace captures the full execution flow including prompts, model responses, token usage, latencies, and costs - giving you the insights needed to debug issues, optimize performance, and understand how your AI systems actually behave in production.
+
 ## Prerequisites
 
 - Python 3.12.10 (managed via pyenv)
