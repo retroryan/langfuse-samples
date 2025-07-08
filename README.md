@@ -1,6 +1,6 @@
 # Langfuse Integration Samples
 
-This repository contains example integrations demonstrating how to use Langfuse observability with various LLM frameworks.
+This repository contains example integrations demonstrating how to use [Langfuse](https://langfuse.com/) observability with various LLM frameworks.
 
 ## Prerequisites
 
